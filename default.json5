@@ -88,6 +88,16 @@
       groupName: "github-actions",
     },
 
+    // A hosted runner image (ubuntu-24.04, macos-15, windows-2025) moves as
+    // one PR per image: its `runs-on` lines, which the github-actions manager
+    // reads, and its matrix entries, which the runner-matrix manager below
+    // reads. Listed after the github-actions rule: last groupName wins.
+    {
+      description: "Hosted runner images: runs-on and matrix entries together",
+      matchDatasources: ["github-runners"],
+      groupName: "{{{depName}}} runner",
+    },
+
     // cspell and its dictionaries come from npm via pnpm. Renovate runs pnpm
     // with scripts ignored unless allowScripts is set globally; it is not.
     {
@@ -140,6 +150,26 @@
   ],
 
   customManagers: [
+    // Hosted runner labels in workflow matrices. The github-actions manager
+    // reads a label only from a literal `runs-on:`, so a job with
+    // `runs-on: ${{ matrix.os }}` keeps its old image when the others move.
+    // The first expression finds an `os:` list or an `include` entry's `os:`;
+    // the second takes each label in it:
+    //
+    //   os: [ubuntu-24.04, macos-15, windows-2025]
+    //   - os: ubuntu-24.04
+    {
+      customType: "regex",
+      description: "Hosted runner labels in workflow matrices",
+      managerFilePatterns: ["/^\\.github/workflows/[^/]+\\.ya?ml$/"],
+      matchStringsStrategy: "recursive",
+      matchStrings: [
+        "(?:\\bos:[ \\t]*\\[[^\\]\\n]*\\]|-[ \\t]+os:[ \\t]*[A-Za-z0-9.-]+)",
+        "(?<depName>ubuntu|macos|windows)-(?<currentValue>[0-9]+(?:\\.[0-9]+)?)\\b",
+      ],
+      datasourceTemplate: "github-runners",
+    },
+
     // .vale.ini `Packages` block. Each entry is a GitHub release-asset URL
     // that already carries owner/repo and the version tag, so no inline
     // `# renovate:` marker is needed (Vale's backslash-continued list has
