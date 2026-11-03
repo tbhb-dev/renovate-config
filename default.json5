@@ -113,6 +113,21 @@
       groupName: "renovate-config",
       automerge: false,
     },
+    // The same references pinned to a branch (`// main`, `# main`) come from
+    // the git-refs managers below, whose package name is the repository URL.
+    {
+      matchDepNames: ["tbhb-dev/renovate-config"],
+      groupName: "renovate-config",
+      automerge: false,
+    },
+    // A reusable-workflow `uses:` pinned to a branch is the git-refs
+    // manager's. The github-actions manager would read `main` as a tag and
+    // fail to look it up.
+    {
+      matchManagers: ["github-actions"],
+      matchCurrentValue: "/^main$/",
+      enabled: false,
+    },
 
     // .vale.ini packages and their MODULE.bazel http_file twins are the same
     // upstream. The group name template resolves to the same branch for both,
@@ -164,6 +179,34 @@
         "\"github>(?<depName>[^/\"]+/[^/\"]+)//[^\"#]+#(?<currentDigest>[0-9a-f]{40})\",?\\s*//\\s*(?<currentValue>v[^\\s]+)",
       ],
       datasourceTemplate: "github-tags",
+    },
+    // The same preset references pinned to a branch instead of a release:
+    //
+    //   "github>tbhb-dev/renovate-config//default.json5#<sha>", // main
+    //
+    // Each bump moves the SHA to the branch's latest commit.
+    {
+      customType: "regex",
+      description: "Branch-pinned preset references: github>owner/repo//file#<sha> // main",
+      managerFilePatterns: ["/^\\.github/renovate\\.json5$/"],
+      matchStrings: [
+        "\"github>(?<depName>[^/\"]+/[^/\"]+)//[^\"#]+#(?<currentDigest>[0-9a-f]{40})\",?\\s*//\\s*(?<currentValue>main)\\b",
+      ],
+      packageNameTemplate: "https://github.com/{{{depName}}}",
+      datasourceTemplate: "git-refs",
+    },
+    // Reusable workflows pinned to a branch:
+    //
+    //   uses: tbhb-dev/renovate-config/.github/workflows/renovate.yaml@<sha> # main
+    {
+      customType: "regex",
+      description: "Branch-pinned reusable workflows: uses: owner/repo/path@<sha> # main",
+      managerFilePatterns: ["/^\\.github/workflows/[^/]+\\.ya?ml$/"],
+      matchStrings: [
+        "uses:\\s*(?<depName>[^/\\s]+/[^/\\s]+)/[^@\\s]+@(?<currentDigest>[0-9a-f]{40})\\s+#\\s*(?<currentValue>main)\\b",
+      ],
+      packageNameTemplate: "https://github.com/{{{depName}}}",
+      datasourceTemplate: "git-refs",
     },
   ],
 }

@@ -21,13 +21,14 @@ four presets.
 
 Add `.github/renovate.json5`, a caller `.github/workflows/renovate.yaml` and a
 validator caller. Pin the presets and workflows by full commit SHA with a
-version comment:
+comment naming what the SHA tracks: `main`, which Renovate bumps to the
+branch's latest commit, or a release tag such as `v1.0.0`:
 
 ```json5
 {
   extends: [
-    "github>tbhb-dev/renovate-config//default.json5#<sha>", // v1.0.0
-    "github>tbhb-dev/renovate-config//bazel.json5#<sha>", // v1.0.0
+    "github>tbhb-dev/renovate-config//default.json5#<sha>", // main
+    "github>tbhb-dev/renovate-config//bazel.json5#<sha>", // main
   ],
 }
 ```
@@ -35,7 +36,7 @@ version comment:
 ```yaml
 jobs:
   renovate:
-    uses: tbhb-dev/renovate-config/.github/workflows/renovate.yaml@<sha> # v1.0.0
+    uses: tbhb-dev/renovate-config/.github/workflows/renovate.yaml@<sha> # main
     secrets:
       RENOVATE_CLIENT_ID: ${{ secrets.RENOVATE_CLIENT_ID }}
       RENOVATE_PRIVATE_KEY: ${{ secrets.RENOVATE_PRIVATE_KEY }}
