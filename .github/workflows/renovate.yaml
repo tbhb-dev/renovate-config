@@ -44,7 +44,7 @@ permissions:
 jobs:
   renovate:
     name: Run self-hosted Renovate
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 60
     # One run per repo at a time. Never cancel: killing Renovate mid-run can
     # leave a half-pushed branch.

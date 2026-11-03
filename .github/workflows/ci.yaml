@@ -22,7 +22,7 @@ concurrency:
 jobs:
   actionlint:
     name: actionlint
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
       - name: Checkout
@@ -38,7 +38,7 @@ jobs:
 
   zizmor:
     name: zizmor
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -53,7 +53,7 @@ jobs:
 
   ryl:
     name: ryl
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     env:
       # renovate: datasource=pypi depName=ryl
@@ -69,7 +69,7 @@ jobs:
 
   reuse:
     name: reuse
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
       - name: Checkout
@@ -98,7 +98,7 @@ jobs:
     name: conclusion
     if: always()
     needs: [actionlint, zizmor, ryl, reuse, validate-presets]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 2
     steps:
       - name: Fail if any needed job did not succeed
