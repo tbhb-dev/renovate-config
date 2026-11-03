@@ -107,10 +107,15 @@
       automerge: false,
     },
 
+    // First-party and reviewed before it merges, so a consumer takes a rules
+    // commit as soon as it lands instead of after default.json5's 5-day
+    // cooldown, which is for third-party releases. This preset comes after
+    // default.json5 in every consumer's extends, so it overrides that rule.
     {
       description: "tbhb rules modules and their git_override move together",
       matchPackageNames: ["tbhb-dev/rules", "tbhb_rules*"],
       groupName: "tbhb_rules",
+      minimumReleaseAge: null,
       automerge: false,
     },
 
