@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright Tony Burns
+
+version = 1
+
+# Everything is Apache-2.0. Files that take a comment carry a two-line header.
+# These cover files that cannot hold one or that must stay verbatim.
+
+[[annotations]]
+path = [
+  "LICENSE",
+  "README.md",
+  "SETUP.md",
+  ".gitignore",
+  ".github/renovate.json5",
+]
+SPDX-FileCopyrightText = "Tony Burns"
+SPDX-License-Identifier = "Apache-2.0"
+
+# Per-consumer files are copied into other repos, where those repos' own REUSE
+# policy applies. Staging only; this directory is not committed here.
+[[annotations]]
+path = ["consumers/**"]
+SPDX-FileCopyrightText = "Tony Burns"
+SPDX-License-Identifier = "Apache-2.0"

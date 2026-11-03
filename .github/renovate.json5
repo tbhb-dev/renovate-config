@@ -1,0 +1,35 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+
+  // Renovate for this repo itself. The presets are referenced unpinned: they
+  // sit beside this file and Renovate resolves `extends` over the platform
+  // API, not off the checkout. The validator checks the unpinned self
+  // references against the PR tree.
+  extends: [
+    "github>tbhb-dev/renovate-config//default.json5",
+  ],
+
+  // Image and tool pins that only a repo hosting the shared workflows has.
+  customManagers: [
+    // `renovate-image: <ref>` action inputs and `<NAME>_IMAGE: "<ref>"` /
+    // `<NAME>_IMAGE="<ref>"` assignments, marker on the line above:
+    //
+    //   # renovate: datasource=docker depName=ghcr.io/renovatebot/renovate
+    //   RENOVATE_IMAGE: "ghcr.io/renovatebot/renovate:44.206.2@sha256:..."
+    {
+      customType: "regex",
+      managerFilePatterns: ["/^\\.github/workflows/[^/]+\\.ya?ml$/"],
+      matchStrings: [
+        "# renovate: datasource=(?<datasource>.*?) depName=(?<depName>.*?)\\s+(?:\\S+_IMAGE(?::\\s+|=)\"?|renovate-image:\\s+)[^:\\s\"]+:(?<currentValue>[^@\\s\"]+)@(?<currentDigest>sha256:[a-f0-9]+)\"?",
+      ],
+    },
+    // `<NAME>_VERSION: "1.2.3"` pins for pipx-run tools, marker above.
+    {
+      customType: "regex",
+      managerFilePatterns: ["/^\\.github/workflows/[^/]+\\.ya?ml$/"],
+      matchStrings: [
+        "# renovate: datasource=(?<datasource>.*?) depName=(?<depName>.*?)\\s+\\S+_VERSION:\\s+\"?(?<currentValue>[^\"\\s]+)\"?",
+      ],
+    },
+  ],
+}

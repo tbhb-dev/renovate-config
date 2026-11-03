@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright Tony Burns
+
+---
+# Renovate for this repo itself, through its own reusable workflow. Uses the
+# same org secrets and App installation as every consumer.
+name: Renovate (self)
+
+on:
+  schedule:
+    - cron: "7 * * * 1-5"
+    - cron: "7 */2 * * 6,0"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        type: boolean
+        description: "Log what Renovate would do, change nothing"
+        default: true
+      log_level:
+        type: choice
+        description: "Renovate log level"
+        options: [DEBUG, INFO]
+        default: DEBUG
+
+permissions:
+  contents: read
+
+jobs:
+  renovate:
+    uses: ./.github/workflows/renovate.yaml
+    with:
+      # Schedule runs are real runs at DEBUG; manual runs follow the inputs.
+      dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+      log_level: ${{ github.event_name == 'workflow_dispatch' && inputs.log_level || 'DEBUG' }}
+    secrets:
+      RENOVATE_CLIENT_ID: ${{ secrets.RENOVATE_CLIENT_ID }}
+      RENOVATE_PRIVATE_KEY: ${{ secrets.RENOVATE_PRIVATE_KEY }}

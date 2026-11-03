@@ -1,0 +1,135 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright Tony Burns
+
+---
+# Reusable PR gate that catches broken Renovate config before it lands on main.
+# The cron Renovate workflow only fires on schedule, so a malformed config on
+# main can sit unnoticed until the next run.
+#
+# Two checks run, because the validator alone is not enough:
+#
+# 1. `renovate-config-validator --strict` over every path in `configs`, from
+#    the same digest-pinned image the Renovate workflow runs.
+# 2. A preset-reference check. The validator never resolves `extends`, so a
+#    `github>owner/repo//file#ref` that points at nothing still validates, and
+#    Renovate later fails with config-presets-invalid and quietly stops opening
+#    PRs. The second step fetches each reference at the `#ref` it names.
+#
+# The workflow runs against the CALLER's checkout, so the check script is
+# inlined here rather than committed as a file.
+name: Validate Renovate configuration
+
+on:
+  workflow_call:
+    inputs:
+      configs:
+        type: string
+        description: "Newline-separated Renovate config paths, relative to the repo root"
+        default: ".github/renovate.json5"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate Renovate configuration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      CONFIGS: ${{ inputs.configs }}
+      # Same image as the `renovate-image` input in renovate.yaml; the shared
+      # "renovate" group moves both in one PR.
+      # renovate: datasource=docker depName=ghcr.io/renovatebot/renovate
+      RENOVATE_IMAGE: "ghcr.io/renovatebot/renovate:44.206.2@sha256:d515a99f5d14d1c62b792ee61339d165dd9d20ee82ca9d5379daf639050bab51"
+    steps:
+      - name: Checkout configuration
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Validate configuration
+        run: |
+          mapfile -t configs < <(printf '%s\n' "${CONFIGS}" | sed '/^[[:space:]]*$/d')
+          docker run --rm --entrypoint renovate-config-validator \
+            -v "${GITHUB_WORKSPACE}:/repo" -w /repo \
+            "${RENOVATE_IMAGE}" --strict "${configs[@]}"
+
+      - name: Verify preset references resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > "${RUNNER_TEMP}/check-preset-refs.mjs" <<'MJS'
+          import { existsSync, readFileSync } from "node:fs";
+          import { createRequire } from "node:module";
+
+          // json5 ships inside the Renovate image but is not resolvable from
+          // the default module paths.
+          const JSON5 = createRequire("/usr/local/renovate/").call(null, "json5");
+          const selfRepo = process.env.GITHUB_REPOSITORY;
+          const token = process.env.GH_TOKEN;
+          const api = process.env.GITHUB_API_URL ?? "https://api.github.com";
+
+          const refs = new Set();
+          for (const file of process.argv.slice(2)) {
+            const config = JSON5.parse(readFileSync(file, "utf8"));
+            for (const entry of config.extends ?? []) {
+              if (typeof entry === "string" && entry.startsWith("github>")) refs.add(entry);
+            }
+          }
+
+          let failed = 0;
+          for (const ref of [...refs].sort()) {
+            // github>owner/repo//path, optionally with #ref. Any other shape
+            // fails: a silently skipped reference is the failure this prevents.
+            const m = /^github>([^/#:]+)\/([^/#:]+)\/\/([^#:]+)(?:#([^#:]+))?$/.exec(ref);
+            if (!m) {
+              console.log(`FAIL  ${ref} (unrecognized reference shape)`);
+              failed += 1;
+              continue;
+            }
+            const [, owner, repo, path, pinned] = m;
+            const slug = `${owner}/${repo}`;
+            if (slug === selfRepo && !pinned) {
+              // Unpinned self-reference: check this PR's tree, so a preset
+              // added or renamed in the same PR resolves against what lands.
+              if (existsSync(path)) {
+                console.log(`ok    ${slug}//${path} (this repo, PR tree)`);
+              } else {
+                console.log(`FAIL  ${slug}//${path} (not in this PR's tree)`);
+                failed += 1;
+              }
+              continue;
+            }
+            // ?ref= makes a pinned reference mean something; without it the
+            // API answers for the default branch.
+            const url = new URL(`${api}/repos/${slug}/contents/${path}`);
+            if (pinned) url.searchParams.set("ref", pinned);
+            const response = await fetch(url, {
+              headers: {
+                accept: "application/vnd.github+json",
+                ...(token ? { authorization: `Bearer ${token}` } : {}),
+              },
+            });
+            const at = pinned ? `ref ${pinned}` : "default branch";
+            if (response.ok) {
+              console.log(`ok    ${slug}//${path} (${at})`);
+            } else {
+              console.log(`FAIL  ${slug}//${path} (${at}, HTTP ${response.status})`);
+              failed += 1;
+            }
+          }
+          if (refs.size === 0) console.log("no github> preset references to check");
+          if (failed > 0) {
+            console.log(`\n${failed} preset reference(s) did not resolve.`);
+            process.exit(1);
+          }
+          MJS
+          mapfile -t configs < <(printf '%s\n' "${CONFIGS}" | sed '/^[[:space:]]*$/d')
+          docker run --rm --entrypoint node \
+            -e GITHUB_REPOSITORY -e GH_TOKEN -e GITHUB_API_URL \
+            -v "${GITHUB_WORKSPACE}:/repo" \
+            -v "${RUNNER_TEMP}/check-preset-refs.mjs:/check-preset-refs.mjs:ro" \
+            -w /repo "${RENOVATE_IMAGE}" \
+            /check-preset-refs.mjs "${configs[@]}"

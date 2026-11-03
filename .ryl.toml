@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright Tony Burns
+
+[files]
+yaml = ["*.yaml", "*.yml"]
+
+[lint.rules]
+document-end = "disable"
+quoted-strings = "disable"
+truthy = "disable"
+
+[lint.rules.line-length]
+max = 160
