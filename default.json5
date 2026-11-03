@@ -1,0 +1,169 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright Tony Burns
+
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+
+  // Shared repository-level policy for every tbhb-dev repo. Consumers extend
+  // it from their own .github/renovate.json5, pinned by commit SHA:
+  //
+  //   "github>tbhb-dev/renovate-config//default.json5#<sha>", // v1.0.0
+  //
+  // The `.json5` suffix is required: Renovate keeps a custom preset filename
+  // verbatim only when it already ends in .json, .json5 or .jsonc.
+  //
+  // Only repo-level options belong in presets. Global-only settings (identity,
+  // limits, allowedUnsafeExecutions, allowedCommands, hostRules with tokens)
+  // live in the reusable workflow's env.
+  //
+  // `packageRules` and `customManagers` are mergeable arrays, so presets and
+  // the consuming repo append to each other. For `groupName`, the LAST matching
+  // rule wins, so a consumer's rules (listed after its extends) override these.
+  extends: [
+    "config:best-practices",
+    // DCO sign-off on every commit, matching the bot's gitAuthor.
+    ":gitSignOff",
+  ],
+
+  // `ignorePaths` is not mergeable: setting it replaces the defaults from
+  // config:best-practices (node_modules, vendor, examples, tests and the like),
+  // so those are repeated here before the additions.
+  ignorePaths: [
+    "**/node_modules/**",
+    "**/bower_components/**",
+    "**/vendor/**",
+    "**/examples/**",
+    "**/__tests__/**",
+    "**/test/**",
+    "**/tests/**",
+    "**/__fixtures__/**",
+    // Fixtures hold deliberately stale pins and fake manifests.
+    "**/testdata/**",
+    // mise's per-tool lock sidecars (for example cspell's package.json) are
+    // mise.lock's business, not an npm manifest to bump.
+    "**/.mise/locks/**",
+  ],
+
+  // Commit through the GitHub API so GitHub signs the commits as the App
+  // (verified). The main rulesets require signatures, and a plain git push
+  // from the container would be unsigned. Values: auto, disabled, enabled.
+  platformCommit: "enabled",
+
+  // Enforce the age cooldown strictly: a release younger than
+  // minimumReleaseAge is not proposed at all, instead of showing as a pending
+  // status check.
+  internalChecksFilter: "strict",
+
+  // Known CVEs open PRs at once, with no cooldown. Needs the App's
+  // "Dependabot alerts: read" permission.
+  vulnerabilityAlerts: {
+    enabled: true,
+    minimumReleaseAge: null,
+  },
+
+  // Refresh the whole locked closure, but only when a human ticks the box on
+  // the Dependency Dashboard. The age cooldown cannot reach inside a re-lock,
+  // so approval is the gate. No automerge, ever: lock maintenance can run
+  // package-manager code.
+  lockFileMaintenance: {
+    enabled: true,
+    dependencyDashboardApproval: true,
+    schedule: ["at any time"],
+    automerge: false,
+  },
+
+  packageRules: [
+    // 5-day cooldown. Most supply-chain attacks are noticed and yanked inside
+    // that window. vulnerabilityAlerts above bypasses it.
+    {
+      description: "5-day minimum release age",
+      matchUpdateTypes: ["major", "minor", "patch", "digest"],
+      minimumReleaseAge: "5 days",
+    },
+
+    // One review surface for every GitHub Actions pin refresh.
+    {
+      description: "GitHub Actions pins, SHA-pinned with a version comment",
+      matchManagers: ["github-actions"],
+      groupName: "github-actions",
+    },
+
+    // cspell and its dictionaries come from npm via pnpm. Renovate runs pnpm
+    // with scripts ignored unless allowScripts is set globally; it is not.
+    {
+      description: "cspell and its dictionaries",
+      matchManagers: ["npm"],
+      matchFileNames: ["**/cspell/**", "package.json"],
+      groupName: "cspell",
+    },
+
+    // The Renovate engine image is pinned in renovate.yaml and in the
+    // validator workflow of the repos that host them. One PR keeps the two
+    // engines in step. Listed after the github-actions rule: last groupName
+    // wins.
+    {
+      matchDepNames: ["ghcr.io/renovatebot/renovate"],
+      groupName: "renovate",
+    },
+
+    // The pinned preset references in every consumer's .github/renovate.json5
+    // move together, one PR per consumer.
+    {
+      matchPackageNames: ["tbhb-dev/renovate-config"],
+      groupName: "renovate-config",
+      automerge: false,
+    },
+
+    // .vale.ini packages and their MODULE.bazel http_file twins are the same
+    // upstream. The group name template resolves to the same branch for both,
+    // so one PR moves .vale.ini and the Bazel pin together.
+    {
+      description: "Vale packages: .vale.ini and the MODULE.bazel twins in one PR",
+      matchFileNames: [".vale.ini"],
+      groupName: "{{{packageName}}}",
+    },
+  ],
+
+  customManagers: [
+    // .vale.ini `Packages` block. Each entry is a GitHub release-asset URL
+    // that already carries owner/repo and the version tag, so no inline
+    // `# renovate:` marker is needed (Vale's backslash-continued list has
+    // nowhere to put one anyway).
+    //
+    //   https://github.com/errata-ai/Google/releases/download/v0.6.3/Google.zip, \
+    //
+    // Several assets of one release (tbhb/vale-ai-tells) share an identical
+    // matched substring, so autoReplaceGlobalMatch rewrites all in one update.
+    // The Bazel twins in MODULE.bazel are the `bazel` manager's.
+    {
+      customType: "regex",
+      description: "Vale packages in .vale.ini",
+      managerFilePatterns: ["/(^|/)\\.vale\\.ini$/"],
+      matchStrings: [
+        "https://github\\.com/(?<packageName>[^/\\s]+/[^/\\s]+)/releases/download/(?<currentValue>[^/\\s]+)/",
+      ],
+      depNameTemplate: "{{{packageName}}}",
+      datasourceTemplate: "github-releases",
+    },
+
+    // The pinned `extends` reference to these presets, in each consumer's
+    // .github/renovate.json5:
+    //
+    //   "github>tbhb-dev/renovate-config//default.json5#<sha>", // v1.0.0
+    //
+    // Renovate documents preset pinning with a tag suffix, but a full commit
+    // SHA resolves too. The SHA plus a version comment keeps the convention
+    // every other pin here uses; the comment is the only human-readable
+    // version at that site. A preset pinned to an old ref governs its own
+    // bump, so this takes effect one release after it lands.
+    {
+      customType: "regex",
+      description: "Pinned preset references: github>owner/repo//file#<sha> // vX",
+      managerFilePatterns: ["/^\\.github/renovate\\.json5$/"],
+      matchStrings: [
+        "\"github>(?<depName>[^/\"]+/[^/\"]+)//[^\"#]+#(?<currentDigest>[0-9a-f]{40})\",?\\s*//\\s*(?<currentValue>v[^\\s]+)",
+      ],
+      datasourceTemplate: "github-tags",
+    },
+  ],
+}

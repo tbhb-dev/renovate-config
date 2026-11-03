@@ -1,0 +1,109 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright Tony Burns
+
+---
+# This repo's own gate: lint the workflows, lint the YAML, validate every
+# preset, and check REUSE metadata. A final `conclusion` job gives the main
+# ruleset one stable required check.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  actionlint:
+    name: actionlint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run actionlint
+        run: |
+          # renovate: datasource=docker depName=docker.io/rhysd/actionlint
+          ACTIONLINT_IMAGE="docker.io/rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667"
+          docker run --rm -v "${GITHUB_WORKSPACE}:/repo" -w /repo "${ACTIONLINT_IMAGE}" -color
+
+  zizmor:
+    name: zizmor
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run zizmor
+        uses: zizmorcore/zizmor-action@45d7276c9ca790aabd705e31ca99c6185c3e76dd # v0.8.1
+        with:
+          advanced-security: false
+
+  ryl:
+    name: ryl
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      # renovate: datasource=pypi depName=ryl
+      RYL_VERSION: "0.26.1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run ryl
+        run: pipx run --spec "ryl==${RYL_VERSION}" ryl --strict .
+
+  reuse:
+    name: reuse
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run reuse lint
+        env:
+          # renovate: datasource=pypi depName=reuse
+          REUSE_VERSION: "6.3.0"
+        run: pipx run --spec "reuse==${REUSE_VERSION}" reuse lint
+
+  validate-presets:
+    name: validate presets
+    uses: ./.github/workflows/renovate-config-validator.yaml
+    with:
+      configs: |
+        default.json5
+        bazel.json5
+        go.json5
+        python.json5
+        .github/renovate.json5
+
+  conclusion:
+    name: conclusion
+    if: always()
+    needs: [actionlint, zizmor, ryl, reuse, validate-presets]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Fail if any needed job did not succeed
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "${NEEDS}" | jq .
+          echo "${NEEDS}" | jq -e 'all(.[]; .result == "success")' > /dev/null

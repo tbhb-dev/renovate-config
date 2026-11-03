@@ -1,0 +1,144 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright Tony Burns
+
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+
+  // Bazel repos (ascm, rules, ops). Extend alongside default.json5.
+  //
+  // Tool binaries are literal http_archive/http_file calls, one per tool and
+  // platform, in .bzl files or MODULE.bazel (use_repo_rule). The built-in
+  // `bazel` manager bumps the version in the URL and strip_prefix, downloads
+  // the new artifact and writes the new sha256. Nothing executes, and a
+  // reproducible extension never enters MODULE.bazel.lock, so tool bumps need
+  // no `bazelModDeps` either. dugite-native (git) is the one exception: its
+  // asset name embeds a build hash, so it uses the config-only custom
+  // datasource below.
+
+  // Setting managerFilePatterns REPLACES the defaults, so the three built-in
+  // patterns (WORKSPACE files, .bzl) are repeated and MODULE.bazel is added
+  // for `use_repo_rule(http_file)` calls. `bazel-module` keeps reading the
+  // same MODULE.bazel for bazel_dep.
+  bazel: {
+    managerFilePatterns: [
+      "/(^|/)WORKSPACE(|\\.bazel|\\.bzlmod)$/",
+      "/\\.WORKSPACE\\.bazel$/",
+      "/\\.bzl$/",
+      "/(^|/)MODULE\\.bazel$/",
+    ],
+  },
+
+  customDatasources: {
+    // dugite-native publishes tag `v2.56.0-2` but names the asset
+    // `dugite-native-v2.56.0-a44aeca-macOS-arm64.tar.gz`, so no built-in
+    // datasource can derive the new URL. This reads the releases list, picks
+    // the asset for one platform ({{packageName}} is the platform suffix the
+    // manager below captures) and returns "<tag>/<asset prefix>" as the
+    // version with the asset's API digest as the new sha256.
+    //
+    // The request goes to api.github.com with hostType "custom". The run's
+    // token is attached by a hostRule in the workflow env (a preset cannot
+    // hold a token). Without it the call is anonymous and rate limited.
+    dugite: {
+      defaultRegistryUrlTemplate: "https://api.github.com/repos/desktop/dugite-native/releases?per_page=20",
+      transformTemplates: [
+        "{\"releases\": $[draft = false and prerelease = false].( $t := tag_name; $p := published_at; assets[$contains(name, '-{{{packageName}}}.tar.gz') and $not($contains(name, '.sha256')) and $exists(digest) and digest != null].{ \"version\": $t & '/' & $substringBefore(name, '-{{{packageName}}}.tar.gz'), \"digest\": $substringAfter(digest, 'sha256:'), \"releaseTimestamp\": $p } )}",
+      ],
+    },
+  },
+
+  customManagers: [
+    // Literal http_archive/http_file for dugite-native, with sha256 and url(s)
+    // on adjacent lines in either order:
+    //
+    //   sha256 = "<64 hex>",
+    //   urls = ["https://github.com/desktop/dugite-native/releases/download/v2.56.0-2/dugite-native-v2.56.0-a44aeca-macOS-arm64.tar.gz"],
+    {
+      customType: "regex",
+      description: "dugite-native (git): version '<tag>/<asset prefix>', digest from the GitHub API",
+      managerFilePatterns: ["/\\.bzl$/", "/(^|/)MODULE\\.bazel$/"],
+      matchStrings: [
+        "sha256\\s*=\\s*\"(?<currentDigest>[0-9a-f]{64})\",\\s*urls?\\s*=\\s*\\[?\\s*\"https://github\\.com/desktop/dugite-native/releases/download/(?<currentValue>v[^/\"]+/dugite-native-v[0-9.]+-[0-9a-f]+)-(?<packageName>[A-Za-z0-9]+-[A-Za-z0-9]+)\\.tar\\.gz\"",
+        "urls?\\s*=\\s*\\[?\\s*\"https://github\\.com/desktop/dugite-native/releases/download/(?<currentValue>v[^/\"]+/dugite-native-v[0-9.]+-[0-9a-f]+)-(?<packageName>[A-Za-z0-9]+-[A-Za-z0-9]+)\\.tar\\.gz\"\\s*\\]?,\\s*sha256\\s*=\\s*\"(?<currentDigest>[0-9a-f]{64})\"",
+      ],
+      depNameTemplate: "dugite-native",
+      datasourceTemplate: "custom.dugite",
+      versioningTemplate: "regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)(?:-(?<build>\\d+))?/",
+    },
+  ],
+
+  // `groupName` resolves to the LAST matching rule, so order matters here:
+  // generic groups first, then the specific ones.
+  packageRules: [
+    // The bazel manager also sees the dugite http_archive, maps it to
+    // github-releases, rewrites the URL wrongly and reports an artifact
+    // error. Switch that dep off for the built-in datasources; the custom
+    // manager above owns it.
+    {
+      description: "dugite-native belongs to the custom datasource",
+      matchPackageNames: ["desktop/dugite-native"],
+      matchDatasources: ["github-releases", "github-tags"],
+      enabled: false,
+    },
+
+    // One PR per upstream across platforms and files: every platform's
+    // http_archive of one tool lands together, and with the .vale.ini rule in
+    // default.json5 the same name template joins a Vale package's twins.
+    {
+      description: "One PR per upstream across platforms",
+      matchManagers: ["bazel"],
+      groupName: "{{{packageName}}}",
+    },
+
+    {
+      description: "git (dugite-native), every platform in one PR",
+      matchDatasources: ["custom.dugite"],
+      groupName: "git (dugite-native)",
+    },
+
+    // bazel_dep bumps run `bazel mod deps` (the allowlisted bazelModDeps
+    // execution) to refresh MODULE.bazel.lock. Never automerge anything that
+    // executed code.
+    {
+      description: "Bazel modules",
+      matchManagers: ["bazel-module"],
+      matchDepTypes: ["bazel_dep"],
+      groupName: "bazel modules",
+      automerge: false,
+    },
+
+    {
+      description: "tbhb rules modules and their git_override move together",
+      matchPackageNames: ["tbhb-dev/rules", "tbhb_rules*"],
+      groupName: "tbhb_rules",
+      automerge: false,
+    },
+
+    // SchemaStore moves constantly; take it once a month, early.
+    {
+      matchPackageNames: ["SchemaStore/schemastore"],
+      schedule: ["* 0-3 1 * *"],
+    },
+
+    // The one post-upgrade task. preset.bazelrc is generated from the Bazel
+    // version and checked by //:preset.update_test, so a .bazelversion bump
+    // (and a bazelrc-preset.bzl bump) needs a regenerate commit. One rule
+    // covers both and sits after "Bazel modules" so its group wins for
+    // bazelrc-preset.bzl. The command is allowlisted by an anchored regex in
+    // the workflow env (RENOVATE_ALLOWED_COMMANDS), not here, so a repo PR
+    // cannot widen it. fileFilters limits what the task may add to the
+    // commit. Never automerge: a command ran with the token in the clone.
+    {
+      description: "Bazel version and preset generator move together; preset.bazelrc is regenerated in-branch",
+      matchPackageNames: ["bazelbuild/bazel", "bazelrc-preset.bzl"],
+      groupName: "bazel version",
+      automerge: false,
+      postUpgradeTasks: {
+        commands: ["bazelisk run //:preset.update"],
+        fileFilters: ["preset.bazelrc"],
+        executionMode: "branch",
+        installTools: { bazelisk: {} },
+      },
+    },
+  ],
+}

@@ -1,0 +1,37 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright Tony Burns
+
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+
+  // uv projects: pyproject.toml dependencies (pep621 manager) and the uv.lock
+  // that goes with them. Renovate regenerates uv.lock natively after a bump;
+  // uv may build sdists for metadata, which is accepted because uv.lock pins
+  // hashes and the 5-day cooldown applies. Extend alongside default.json5.
+  packageRules: [
+    {
+      description: "Python dependencies in pyproject.toml, with uv.lock refreshed",
+      matchManagers: ["pep621"],
+      groupName: "python deps",
+    },
+    // The uv version appears as a pinned `required-version` and, in Bazel
+    // repos, as release assets. Keep every site in one PR.
+    {
+      matchPackageNames: ["astral-sh/uv", "uv"],
+      groupName: "uv",
+    },
+  ],
+
+  customManagers: [
+    // [tool.uv] required-version = "==0.13.6"
+    {
+      customType: "regex",
+      description: "uv required-version, pinned exactly",
+      managerFilePatterns: ["/(^|/)pyproject\\.toml$/"],
+      matchStrings: ["required-version = \"==(?<currentValue>[^\"]+)\""],
+      packageNameTemplate: "astral-sh/uv",
+      depNameTemplate: "uv",
+      datasourceTemplate: "github-releases",
+    },
+  ],
+}

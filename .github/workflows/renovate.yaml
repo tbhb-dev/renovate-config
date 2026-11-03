@@ -1,0 +1,144 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright Tony Burns
+
+---
+# Reusable self-hosted Renovate run for the tbhb-dev repositories.
+#
+# A caller repo runs this workflow with `uses:` and gets a Renovate run that
+# targets only that repo (RENOVATE_REPOSITORIES is the caller's
+# `github.repository`). The caller's own checkout supplies
+# `.github/renovate.json5`.
+#
+# Credentials: RENOVATE_CLIENT_ID and RENOVATE_PRIVATE_KEY are org secrets of
+# tbhb-dev, visible to all repos. A reusable workflow does not see the caller's
+# secrets implicitly, so each caller passes both explicitly under `secrets:`.
+#
+# Global-only settings sit in `env:` below. Env overrides the config file, so a
+# consuming repo cannot widen the execution allowlists from its own PRs.
+name: Renovate
+
+on:
+  workflow_call:
+    inputs:
+      log_level:
+        type: string
+        description: "Renovate LOG_LEVEL (DEBUG, INFO, WARN)"
+        default: DEBUG
+      repo_cache:
+        type: string
+        description: "Repository cache: enabled, disabled or reset (ignore the stored cache, then save a fresh one)"
+        default: enabled
+      dry_run:
+        type: boolean
+        description: "Run with dryRun=full: log the PRs Renovate would open, change nothing"
+        default: false
+    secrets:
+      RENOVATE_CLIENT_ID:
+        required: true
+      RENOVATE_PRIVATE_KEY:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  renovate:
+    name: Run self-hosted Renovate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    # One run per repo at a time. Never cancel: killing Renovate mid-run can
+    # leave a half-pushed branch.
+    concurrency:
+      group: renovate-${{ github.repository }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+    env:
+      cache_dir: /tmp/renovate/cache/renovate/repository
+      cache_key: renovate-cache
+    steps:
+      # GITHUB_TOKEN cannot satisfy Renovate's scope and cannot push workflow
+      # files, so mint a short-lived installation token from the
+      # tbhb-dev-renovate App. The token is scoped to this repository (the
+      # default) and downscoped to the permissions Renovate needs: no
+      # administration, no secrets, no environments.
+      - name: Get token
+        id: token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ secrets.RENOVATE_CLIENT_ID }}
+          private-key: ${{ secrets.RENOVATE_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-issues: write
+          permission-workflows: write
+          permission-statuses: write
+          permission-checks: write
+          permission-vulnerability-alerts: read
+
+      # Renovate re-clones the repo inside its container, but the action needs
+      # the config file on the runner filesystem to bind into the container.
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Restore repository cache
+        if: inputs.repo_cache != 'disabled' && inputs.repo_cache != 'reset'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.cache_dir }}
+          key: ${{ env.cache_key }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: ${{ env.cache_key }}-
+
+      # The Renovate container runs as uid 12021 and writes the cache.
+      - name: Prepare cache directory
+        run: |
+          mkdir -p "${cache_dir}"
+          sudo chown -R 12021:0 /tmp/renovate/
+
+      # GITHUB_COM_TOKEN is deliberately not set. The platform token already
+      # authenticates github.com reads (presets, changelogs) and the presets
+      # are public. Add it only if a run reports github.com rate limiting.
+      - name: Self-hosted Renovate
+        uses: renovatebot/github-action@1c0cf989c02653fba0efe7ca5772338860ca71dc # v46.3.12
+        env:
+          LOG_LEVEL: ${{ inputs.log_level }}
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
+          RENOVATE_DRY_RUN: ${{ inputs.dry_run && 'full' || '' }}
+          RENOVATE_ONBOARDING: "false"
+          RENOVATE_REQUIRE_CONFIG: ignored
+          RENOVATE_USERNAME: tbhb-dev-renovate[bot]
+          RENOVATE_GIT_AUTHOR: "tbhb-dev-renovate[bot] <289255489+tbhb-dev-renovate[bot]@users.noreply.github.com>"
+          RENOVATE_PR_CONCURRENT_LIMIT: "0"
+          RENOVATE_PR_HOURLY_LIMIT: "0"
+          RENOVATE_REPOSITORY_CACHE: ${{ inputs.repo_cache == 'disabled' && 'disabled' || 'enabled' }}
+          # The only unsafe execution: `bazel mod deps` refreshes
+          # MODULE.bazel.lock after a bazel_dep, git_override or
+          # .bazelversion bump. `mise` is NOT listed: allowlisting it turns
+          # mise's safe mode off.
+          RENOVATE_ALLOWED_UNSAFE_EXECUTIONS: '["bazelModDeps"]'
+          # The only post-upgrade command, anchored so nothing else matches.
+          # bazel.json5 attaches it to the Bazel version group alone.
+          RENOVATE_ALLOWED_COMMANDS: '["^bazelisk run //:preset\\.update$"]'
+          # The custom.dugite datasource calls api.github.com with hostType
+          # "custom", which the platform token does not cover. Registered
+          # host-rule tokens are sanitized from Renovate's logs. Keep this
+          # value out of `run:` scripts.
+          RENOVATE_HOST_RULES: '[{"matchHost":"api.github.com","hostType":"custom","token":"${{ steps.token.outputs.token }}"}]'
+        with:
+          # Tag plus digest: the action takes a value containing `:` as the
+          # whole image reference, so the container is pinned by content.
+          # The same reference sits in renovate-config-validator.yaml; the
+          # shared "renovate" group moves both in one PR.
+          # renovate: datasource=docker depName=ghcr.io/renovatebot/renovate
+          renovate-image: ghcr.io/renovatebot/renovate:44.206.2@sha256:d515a99f5d14d1c62b792ee61339d165dd9d20ee82ca9d5379daf639050bab51
+          configurationFile: .github/renovate.json5
+          token: ${{ steps.token.outputs.token }}
+
+      - name: Save repository cache
+        if: always() && inputs.repo_cache != 'disabled'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.cache_dir }}
+          key: ${{ env.cache_key }}-${{ github.run_id }}-${{ github.run_attempt }}

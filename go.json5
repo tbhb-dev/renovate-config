@@ -1,0 +1,28 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright Tony Burns
+
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+
+  // Go repos. Extend alongside default.json5 (this preset does not extend it,
+  // so preset resolution stays one hop deep: each hop is a network fetch).
+
+  // `go mod tidy` after a module update keeps go.sum and the indirect graph
+  // coherent in the same PR. It downloads modules and does not execute them,
+  // so it needs no allowedUnsafeExecutions.
+  postUpdateOptions: ["gomodTidy"],
+
+  packageRules: [
+    {
+      description: "One PR for Go module bumps",
+      matchManagers: ["gomod"],
+      matchDepTypes: ["require", "indirect"],
+      groupName: "go deps",
+    },
+    {
+      description: "The go directive and toolchain move separately from modules",
+      matchDatasources: ["golang-version"],
+      groupName: "go toolchain",
+    },
+  ],
+}
