@@ -1,6 +1,47 @@
-consumers/
+tmp/
+.worktrees/
+# Bazel convenience symlinks (--symlink_prefix=.bazel-); the old bazel-*
+# links stay listed for one transition, since clones that have not run Bazel
+# since the prefix change still have them.
+.bazel-*
+bazel-*
+.bazelrc.user
+# bazel_env's symlink into the output tree (bazel run //:bazel_env).
+.bazel_env
+mise.local.toml
+.env*
 .DS_Store
+# Obsidian vault settings, from opening the repository as a vault.
+.obsidian/
+.claude/settings.local.json
+.claude/worktrees/
+
+# Per-consumer files staged here before they are copied into other
+# repositories; never committed in this one.
+consumers/
+
+# Python tooling (the interim PR scripts' environment)
+.venv/
+__pycache__/
+.ruff_cache/
+
+# vale sync writes the synced style packages and templates under .vale/;
+# only the project's own style and vocabulary are tracked.
+.vale/*
+!.vale/project/
+!.vale/config/
+.vale/config/*
+!.vale/config/vocabularies/
+.vale/config/vocabularies/*
+!.vale/config/vocabularies/project/
+
+# Linter caches
 .ryl_cache/
+.rumdl_cache/
+.cspell/
+
+# Agents draft PRs here; the PR script lints it and opens the PR from it.
+.github/PULL_REQUEST_DRAFT.md
 
 # Tracked here although global ignores often skip it: the pinned awrel MCP
 # server this repository runs in its own sessions.

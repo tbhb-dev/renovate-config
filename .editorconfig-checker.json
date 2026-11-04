@@ -1,0 +1,12 @@
+{
+  "Exclude": [
+    "^\\.bazel-",
+    "^bazel-",
+    "^(default|bazel|go|python)\\.json5$",
+    "^\\.github/workflows/renovate(-config-validator)?\\.yaml$",
+    "^\\.mise/",
+    "^\\.vale/(Google|write-good|proselint|ai-tells.*)/",
+    "^\\.venv/",
+    "^tmp/"
+  ]
+}

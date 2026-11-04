@@ -1,0 +1,36 @@
+{
+  "language": "en",
+  "ignorePaths": [
+    ".mise/**/*",
+    ".rumdl_cache/**/*",
+    ".vale/**/*",
+    ".venv/**/*",
+    ".bazel-*/**/*",
+    "bazel-*/**/*",
+    "coverage.xml",
+    "LICENSE",
+    "MODULE.bazel.lock",
+    "mise.lock",
+    "tmp/**/*",
+    // A verbatim copy of ascm's scripts, linted at the source in ascm.
+    "tools/interim/**/*",
+    ".worktrees/**/*",
+    "uv.lock",
+    // Consumers pin these by commit, and any change at main bumps every
+    // consumer's pin, so they stay byte-identical until a deliberate PR.
+    "default.json5",
+    "bazel.json5",
+    "go.json5",
+    "python.json5",
+    ".github/workflows/renovate.yaml",
+    ".github/workflows/renovate-config-validator.yaml"
+  ],
+  "dictionaryDefinitions": [
+    {
+      "name": "renovate-config",
+      "path": "./.cspell-words.txt",
+      "addWords": true
+    }
+  ],
+  "dictionaries": ["renovate-config", "python"]
+}
