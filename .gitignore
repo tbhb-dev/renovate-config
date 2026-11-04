@@ -1,3 +1,7 @@
 consumers/
 .DS_Store
 .ryl_cache/
+
+# Tracked here although global ignores often skip it: the pinned awrel MCP
+# server this repository runs in its own sessions.
+!.mcp.json
