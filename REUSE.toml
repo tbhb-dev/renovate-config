@@ -13,6 +13,7 @@ path = [
   "SETUP.md",
   ".gitignore",
   ".github/renovate.json5",
+  ".mcp.json",
 ]
 SPDX-FileCopyrightText = "Tony Burns"
 SPDX-License-Identifier = "Apache-2.0"
