@@ -1,0 +1,6 @@
+Bazel
+datasource
+downscoped
+dugite
+env
+uv

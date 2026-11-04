@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright Tony Burns
+
+---
+# actionlint 1.7.12 predates GitHub's ubuntu-26.04 images and reports their
+# labels as unknown. This list only adds labels actionlint accepts; remove
+# an entry once the pinned actionlint knows it.
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04
+    - ubuntu-26.04-arm
+
+# The reusable validator workflow stays byte-identical until a deliberate PR,
+# because consumers pin it by commit and any change at main bumps every
+# consumer's pin. Its `run:` blocks pipe a command's output, which the
+# check-extra-masked-returns shellcheck option (SC2312) reports; fix it there
+# in that PR and drop this entry.
+paths:
+  .github/workflows/renovate-config-validator.yaml:
+    ignore:
+      - 'SC2312'

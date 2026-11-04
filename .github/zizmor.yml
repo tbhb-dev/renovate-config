@@ -9,7 +9,20 @@ rules:
   unpinned-uses:
     config:
       policies:
-        "*": hash-pin  # actionlint does not understand the `$/` self-repository syntax yet, so
-  # local reusable-workflow calls keep the `./` form.
+        "*": hash-pin
+  # ci.yml pins tbhb-dev/rules' shared CI pieces by commit to its main branch,
+  # which has no release tags by design; Renovate bumps the pins. Each move of
+  # that branch leaves the `# main` comment naming a newer commit until
+  # Renovate's bump merges, which is Renovate's job to catch, not a failure
+  # for every pull request.
+  stale-action-refs:
+    ignore:
+      - ci.yml
+  ref-version-mismatch:
+    ignore:
+      - ci.yml
+  # Off until actionlint accepts GitHub's `$/` self-repository syntax
+  # (actionlint issue 711), which zizmor asks for in place of `./`; then
+  # bump actionlint and switch every local `uses:` to `$/`.
   self-repository:
     disable: true

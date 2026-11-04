@@ -7,6 +7,8 @@
   // references against the PR tree.
   extends: [
     "github>tbhb-dev/renovate-config//default.json5",
+    "github>tbhb-dev/renovate-config//bazel.json5",
+    "github>tbhb-dev/renovate-config//python.json5",
   ],
 
   // Image and tool pins that only a repo hosting the shared workflows has.

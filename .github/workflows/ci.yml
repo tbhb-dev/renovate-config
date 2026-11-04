@@ -1,0 +1,89 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright Tony Burns
+
+---
+# This repo's own gate. Bazel pins the tools and owns the hermetic checks
+# (lint, format, licensing, secrets over the tree), so `bazel test //...`
+# runs them all. rules' shared repo-checks workflow runs the ones that need
+# the network, Git history or the GitHub API. `validate presets` runs the
+# local validator workflow, the product itself, over every preset. A final
+# `conclusion` job gives the main ruleset one stable required check.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # Linux only: nothing here is platform-specific, so a matrix buys nothing.
+  bazel:
+    name: bazel
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Bazel for CI
+        uses: tbhb-dev/rules/.github/actions/setup-bazel-ci@e5d8694c5304db4218b188255c3e6089271ed47f  # main
+        with:
+          disk-cache: ${{ github.workflow }}-bazel
+          cache-save: ${{ github.event_name != 'pull_request' }}
+
+      - name: Test
+        run: bazelisk test --config=ci //...
+
+      # A failed run's test logs, so a failure that does not recur can still
+      # be read. upload-artifact skips dotfiles unless told otherwise.
+      - name: Keep the test logs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: testlogs
+          path: |
+            .bazel-testlogs/**/test.log
+            .bazel-testlogs/**/test.xml
+          include-hidden-files: true
+          if-no-files-found: ignore
+
+  repo:
+    name: repo
+    permissions:
+      contents: read
+    uses: tbhb-dev/rules/.github/workflows/repo-checks.yml@e5d8694c5304db4218b188255c3e6089271ed47f  # main
+    with:
+      pip-audit-target: //:pip_audit
+      module-dirs: .
+
+  validate-presets:
+    name: validate presets
+    uses: ./.github/workflows/renovate-config-validator.yaml
+    with:
+      configs: |
+        default.json5
+        bazel.json5
+        go.json5
+        python.json5
+        .github/renovate.json5
+
+  conclusion:
+    name: conclusion
+    if: always()
+    needs: [bazel, repo, validate-presets]
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - name: Fail if any needed job did not succeed
+        uses: tbhb-dev/rules/.github/actions/ci-conclusion@e5d8694c5304db4218b188255c3e6089271ed47f  # main
+        with:
+          needs: ${{ toJSON(needs) }}
