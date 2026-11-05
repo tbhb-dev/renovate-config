@@ -26,6 +26,10 @@ on:
         type: string
         description: "Newline-separated Renovate config paths, relative to the repo root"
         default: ".github/renovate.json5"
+      runs_on:
+        type: string
+        description: "Runner label. Private callers pass their tbhb-dev-* label; public callers keep the default"
+        default: ubuntu-24.04
 
 permissions:
   contents: read
@@ -33,7 +37,7 @@ permissions:
 jobs:
   validate:
     name: Validate Renovate configuration
-    runs-on: ubuntu-24.04
+    runs-on: ${{ inputs.runs_on }}
     timeout-minutes: 5
     permissions:
       contents: read

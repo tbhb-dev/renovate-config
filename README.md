@@ -44,6 +44,16 @@ jobs:
 
 A preset reference must include the `.json5` suffix.
 
+Both reusable workflows take a `runs_on` input, the runner label, which
+defaults to `ubuntu-24.04`. Public repositories leave it out. A private
+repository must pass its `tbhb-dev-*` runner label, because private jobs
+never run on GitHub-hosted runners:
+
+```yaml
+    with:
+      runs_on: tbhb-dev-ubuntu-24-amd64
+```
+
 ## Security model
 
 - `allowedUnsafeExecutions` allows only `bazelModDeps`. It leaves out `mise`,
