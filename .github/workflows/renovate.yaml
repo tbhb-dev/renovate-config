@@ -95,11 +95,14 @@ jobs:
           key: ${{ env.cache_key }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: ${{ env.cache_key }}-
 
-      # The Renovate container runs as uid 12021 and writes the cache.
+      # The Renovate container runs as uid 12021 and writes the cache. The
+      # runner user owns the directory and any restored cache, so it opens
+      # them to every uid instead of a chown: the tbhb-dev private runners
+      # block sudo.
       - name: Prepare cache directory
         run: |
           mkdir -p "${cache_dir}"
-          sudo chown -R 12021:0 /tmp/renovate/
+          chmod -R a+rwX /tmp/renovate/
 
       # GITHUB_COM_TOKEN is deliberately not set. The platform token already
       # authenticates github.com reads (presets, changelogs) and the presets
