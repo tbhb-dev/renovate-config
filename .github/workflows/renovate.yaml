@@ -32,6 +32,10 @@ on:
         type: boolean
         description: "Run with dryRun=full: log the PRs Renovate would open, change nothing"
         default: false
+      runs_on:
+        type: string
+        description: "Runner label. Private callers pass their tbhb-dev-* label; public callers keep the default"
+        default: ubuntu-24.04
     secrets:
       RENOVATE_CLIENT_ID:
         required: true
@@ -44,7 +48,7 @@ permissions:
 jobs:
   renovate:
     name: Run self-hosted Renovate
-    runs-on: ubuntu-24.04
+    runs-on: ${{ inputs.runs_on }}
     timeout-minutes: 60
     # One run per repo at a time. Never cancel: killing Renovate mid-run can
     # leave a half-pushed branch.
