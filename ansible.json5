@@ -1,0 +1,33 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright Tony Burns
+
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+
+  // Repos that pin Galaxy collections through tbhb_rules_ansible. Extend
+  // alongside default.json5 and bazel.json5. The root MODULE.bazel must
+  // declare ansible.collections; a requirements.yml under a nested module
+  // root needs its lock rewritten by hand (the task runs at the repo root).
+
+  packageRules: [
+    // requirements.lock.json records each collection's Galaxy URL and
+    // sha256, and tbhb_rules_ansible fetches tarballs by it, so a pin bump
+    // needs the lock rewritten in the same branch. The lock target reads
+    // Galaxy's version metadata only: it downloads, unpacks and runs no
+    // collection. The command is allowlisted by an anchored regex in the
+    // workflow env (RENOVATE_ALLOWED_COMMANDS), not here, so a repo PR
+    // cannot widen it. fileFilters limits what the task may add to the
+    // commit. Never automerge: a command ran with the token in the clone.
+    {
+      description: "Galaxy collection bumps rewrite requirements.lock.json in-branch",
+      matchManagers: ["ansible-galaxy"],
+      automerge: false,
+      postUpgradeTasks: {
+        commands: ["bazelisk run @tbhb_rules_ansible//:lock"],
+        fileFilters: ["**/requirements.lock.json"],
+        executionMode: "branch",
+        installTools: { bazelisk: {} },
+      },
+    },
+  ],
+}

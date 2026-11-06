@@ -125,9 +125,11 @@ jobs:
           # .bazelversion bump. `mise` is NOT listed: allowlisting it turns
           # mise's safe mode off.
           RENOVATE_ALLOWED_UNSAFE_EXECUTIONS: '["bazelModDeps"]'
-          # The only post-upgrade command, anchored so nothing else matches.
-          # bazel.json5 attaches it to the Bazel version group alone.
-          RENOVATE_ALLOWED_COMMANDS: '["^bazelisk run //:preset\\.update$"]'
+          # The only post-upgrade commands, anchored so nothing else matches.
+          # bazel.json5 attaches preset.update to the Bazel version group
+          # alone; ansible.json5 attaches the collection lock to
+          # ansible-galaxy bumps alone.
+          RENOVATE_ALLOWED_COMMANDS: '["^bazelisk run //:preset\\.update$","^bazelisk run @tbhb_rules_ansible//:lock$"]'
           # The custom.dugite datasource calls api.github.com with hostType
           # "custom", which the platform token does not cover. Registered
           # host-rule tokens are sanitized from Renovate's logs. Keep this
