@@ -147,6 +147,29 @@
       matchFileNames: [".vale.ini"],
       groupName: "{{{packageName}}}",
     },
+
+    // PR titles, and the squash subjects made from them, fit 72 characters
+    // with " (#NNNN)" appended, so they stay within 64. The longest prefix is
+    // "chore(deps): update " (20). The topic drops Renovate's "dependency",
+    // "module" and "docker" words, and a dependency name over 26 characters
+    // keeps its last 25, after "…" (Go module paths reach 84). A version over
+    // 14 characters keeps its first 13, then "…" (buf.build SDK versions
+    // reach 39). 20 + 26 + " to " + 14 = 64, and a digest adds " digest"
+    // and a 7-character hash: 64. The PR body table still names the full
+    // dependency and version. A group's title is its groupName, which these
+    // rules leave alone. Replacements keep Renovate's "replace X with Y" text,
+    // which can still run long.
+    {
+      description: "Commit subjects and PR titles within 64 characters",
+      matchUpdateTypes: ["major", "minor", "patch", "rollback", "bump"],
+      commitMessageTopic: "{{{replace '^.+(.{25})$' '…$1' depName}}}",
+      commitMessageExtra: "to {{#if isMajor}}{{{prettyNewMajor}}}{{else}}{{#if isSingleVersion}}{{{replace '^(.{13}).+$' '$1…' prettyNewVersion}}}{{else}}{{#if newValue}}{{{replace '^(.{13}).+$' '$1…' newValue}}}{{else}}{{{newDigestShort}}}{{/if}}{{/if}}{{/if}}",
+    },
+    {
+      description: "Digest commit subjects and PR titles within 64 characters",
+      matchUpdateTypes: ["digest"],
+      commitMessageTopic: "{{{replace '^.+(.{25})$' '…$1' depName}}} digest",
+    },
   ],
 
   customManagers: [

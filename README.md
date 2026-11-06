@@ -12,7 +12,7 @@ repo, and the other validates that repo's Renovate configuration.
 | `.github/workflows/renovate-config-validator.yaml` | Reusable strict validation plus a preset-reference resolution check. |
 | `.github/workflows/ci.yml` | This repo's gate: `bazel test //...` over the tree, rules' shared repository checks, preset validation, and the `conclusion` job. |
 | `.github/workflows/renovate-self.yaml` | Renovate for this repo, through its own reusable workflow. |
-| `default.json5` | Every repo: best-practices, 5-day cooldown, ignore paths, grouping, Vale and preset-pin managers, `platformCommit`. |
+| `default.json5` | Every repo: best-practices, 5-day cooldown, ignore paths, grouping, Vale and preset-pin managers, `platformCommit`, and PR titles that fit the 72-character squash subject. |
 | `bazel.json5` | Bazel repos: `bazel` manager on `MODULE.bazel` and `*.bzl`, dugite datasource, Bazel version group with its one post-upgrade task. |
 | `go.json5` | Go repos: `gomodTidy` plus module and toolchain groups. |
 | `python.json5` | uv projects: `pyproject.toml`, `uv.lock`, the uv version pin. |
