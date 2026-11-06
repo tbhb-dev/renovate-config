@@ -1,7 +1,7 @@
 # renovate-config
 
 Shared self-hosted Renovate setup for the tbhb-dev repositories. It holds
-four presets and two reusable workflows: one runs Renovate for the calling
+five presets and two reusable workflows: one runs Renovate for the calling
 repo, and the other validates that repo's Renovate configuration.
 
 ## Contents
@@ -16,6 +16,7 @@ repo, and the other validates that repo's Renovate configuration.
 | `bazel.json5` | Bazel repos: `bazel` manager on `MODULE.bazel` and `*.bzl`, dugite datasource, Bazel version group with its one post-upgrade task. |
 | `go.json5` | Go repos: `gomodTidy` plus module and toolchain groups. |
 | `python.json5` | uv projects: `pyproject.toml`, `uv.lock`, the uv version pin. |
+| `ansible.json5` | Repos that pin Galaxy collections with `tbhb_rules_ansible`. A collection bump rewrites `requirements.lock.json` in the same branch. |
 
 ## Using it from a repo
 
@@ -58,9 +59,12 @@ never run on GitHub-hosted runners:
 
 - `allowedUnsafeExecutions` allows only `bazelModDeps`. It leaves out `mise`,
   so mise stays in safe mode.
-- One post-upgrade command, `bazelisk run //:preset.update`, matched by an
-  anchored regular expression in the workflow `env` and attached only to the
-  Bazel version group.
+- Two post-upgrade commands, each matched by an anchored regular expression
+  in the workflow `env`. `bazel.json5` attaches `bazelisk run //:preset.update`
+  to the Bazel version group alone. `ansible.json5` attaches
+  `bazelisk run @tbhb_rules_ansible//:lock` to `ansible-galaxy` bumps alone.
+  The lock target reads Galaxy version metadata and writes
+  `requirements.lock.json`, without downloading any collection.
 - Both allowlists live in the workflow `env`. They're global-only options,
   which Renovate ignores in a repo's config, so a repo PR can't widen them.
 - Each run creates its own App token, limited to the calling repo, and

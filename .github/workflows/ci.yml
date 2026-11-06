@@ -74,6 +74,7 @@ jobs:
         bazel.json5
         go.json5
         python.json5
+        ansible.json5
         .github/renovate.json5
 
   conclusion:
