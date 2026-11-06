@@ -45,6 +45,12 @@ jobs:
 
 A preset reference must include the `.json5` suffix.
 
+Extend `ansible.json5` only from a repository whose root `MODULE.bazel`
+declares `ansible.collections`. The lock task runs at the repository root,
+so it rewrites the `requirements.lock.json` that tag names. A repository
+with an Ansible module root nested below its own root shouldn't extend the
+preset, because the task fails there.
+
 Both reusable workflows take a `runs_on` input, the runner label, which
 defaults to `ubuntu-24.04`. Public repositories leave it out. A private
 repository must pass its `tbhb-dev-*` runner label, because private jobs
