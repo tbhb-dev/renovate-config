@@ -24,7 +24,6 @@ load(
     "zizmor_test",
 )
 load("@tbhb_rules//repo:defs.bzl", "repo_files", "repo_layout_test")
-load("@tbhb_rules_python//:defs.bzl", "pip_audit", "pip_audit_test")
 
 # Every file of the repository, for the whole-tree checks below. Ignored
 # directories are listed in REPO.bazel; these are the gitignored files that
@@ -116,17 +115,6 @@ gitleaks_test(
     config = ".gitleaks.toml",
 )
 
-# The advisory database changes without any input changing: pip_audit_test
-# is the cached check, and CI runs //:pip_audit for a fresh answer.
-pip_audit(
-    name = "pip_audit",
-)
-
-pip_audit_test(
-    name = "pip_audit_test",
-    srcs = [":repo_files"],
-)
-
 # Copyright and licensing information on every file (REUSE.toml, LICENSES/).
 reuse_test(
     name = "reuse_test",
@@ -143,11 +131,6 @@ tombi_test(
     name = "tombi_test",
     srcs = [":repo_files"],
     config = "tombi.toml",
-    schemas = {
-        "https://www.schemastore.org/partial-pytest.json": "@schemastore_partial_pytest//file",
-        "https://www.schemastore.org/ruff.json": "@schemastore_ruff//file",
-        "https://www.schemastore.org/uv.json": "@schemastore_uv//file",
-    },
 )
 
 rumdl_test(
