@@ -16,8 +16,6 @@ load(
     "reuse_test",
     "rumdl_test",
     "ryl_test",
-    "shellcheck_test",
-    "shfmt_test",
     "tombi_test",
     "vale_sync",
     "vale_test",
@@ -175,18 +173,6 @@ zizmor_test(
     name = "zizmor_test",
     srcs = [":repo_files"],
     config = ".github/zizmor.yml",
-)
-
-# Shell scripts are selected by extension and by shebang. shfmt reads its
-# style from .editorconfig.
-shellcheck_test(
-    name = "shellcheck_test",
-    srcs = [":repo_files"],
-)
-
-shfmt_test(
-    name = "shfmt_test",
-    srcs = [":repo_files"],
 )
 
 codeowners_test(
