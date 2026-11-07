@@ -111,9 +111,17 @@
     // commit as soon as it lands instead of after default.json5's 5-day
     // cooldown, which is for third-party releases. This preset comes after
     // default.json5 in every consumer's extends, so it overrides that rule.
+    // The rules workflows and actions pinned to a branch (`@<sha> # main`)
+    // come from default.json5's git-refs managers, whose package name is the
+    // repository URL. Matching it here keeps them in the same PR as the
+    // git_override, since moving only one side breaks CI.
     {
-      description: "tbhb rules modules and their git_override move together",
-      matchPackageNames: ["tbhb-dev/rules", "tbhb_rules*"],
+      description: "tbhb rules modules, their git_override, and the rules workflow pins move together",
+      matchPackageNames: [
+        "tbhb-dev/rules",
+        "https://github.com/tbhb-dev/rules",
+        "tbhb_rules*",
+      ],
       groupName: "tbhb_rules",
       minimumReleaseAge: null,
       automerge: false,
