@@ -88,13 +88,10 @@ buildifier_test(
 )
 
 # The repository's shape. Only these top-level directories may exist; add a
-# new one here in the change that first uses it. tools/ holds only the
-# interim/ copy of ascm's PR and attribution scripts.
+# new one here in the change that first uses it.
 repo_layout_test(
     name = "repo_layout_test",
     srcs = [":repo_files"],
-    allowed_subdirs = {"tools": ["interim"]},
-    scripts = {"tools": "pep723"},
     top_level_dirs = [
         ".agents",
         ".claude",
@@ -102,7 +99,6 @@ repo_layout_test(
         ".github",
         ".vale",
         "LICENSES",
-        "tools",
     ],
 )
 
@@ -240,12 +236,10 @@ FORMATTERS = [
 
 # Consumers pin the two reusable workflows by commit, and any change to them
 # at main bumps every consumer's pin, so no formatter rewrites them; they
-# change only in a deliberate PR. tools/interim/ is a verbatim copy of ascm's
-# scripts, formatted at the source.
+# change only in a deliberate PR.
 FORMAT_EXCLUDE = [
     ".github/workflows/renovate.yaml",
     ".github/workflows/renovate-config-validator.yaml",
-    "tools/interim/*",
 ]
 
 format(

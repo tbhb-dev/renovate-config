@@ -1,10 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright Tony Burns
 
-# Repo-level Python environment. This repository has no Python of its own:
-# the only Python is tools/interim/, a verbatim copy of ascm's PR and
-# attribution scripts, which ascm lints and tests at the source. This file
-# pins what those scripts and the git hooks need, and pip-audit for the
+# Repo-level Python environment. This repository has no Python of its own.
+# This file pins what the git hooks need, and pip-audit for the
 # //:pip_audit check over uv.lock. `package = false` keeps the root virtual:
 # uv syncs the dependency groups into .venv without trying to build the root.
 [project]
@@ -17,12 +15,9 @@ dependencies = []
 
 [dependency-groups]
 dev = [
-  # The interim PR and identity scripts validate drafts and frontmatter at run time.
-  "jsonschema[format]>=4.26.0",
   "pip-audit>=2.10.1",
   # Runs the git hooks that `tbhbdev alpha install` installs.
   "prek==0.5.9",
-  "pyyaml>=6.0.3",
 ]
 
 [tool.uv]
