@@ -13,7 +13,6 @@ version = 1
 path = [
   "mise.lock",
   "MODULE.bazel.lock",
-  "uv.lock",
 ]
 SPDX-FileCopyrightText = "Tony Burns"
 SPDX-License-Identifier = "Apache-2.0"
@@ -23,7 +22,6 @@ SPDX-License-Identifier = "Apache-2.0"
 [[annotations]]
 path = [
   ".bazelversion",
-  ".python-version",
   ".bazelignore",
   ".rylignore",
   ".cspell-words.txt",

@@ -20,7 +20,7 @@ mise.local.toml
 # repositories; never committed in this one.
 consumers/
 
-# Python tooling (the interim PR scripts' environment)
+# Python tooling (the git hooks' environment)
 .venv/
 __pycache__/
 .ruff_cache/

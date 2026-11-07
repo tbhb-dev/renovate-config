@@ -62,7 +62,7 @@ jobs:
       contents: read
     uses: tbhb-dev/rules/.github/workflows/repo-checks.yml@6c4ec7bf56f52b316557b7c7dec53b30b6ffbbe6  # main
     with:
-      pip-audit-target: //:pip_audit
+      pip-audit-target: ""
       module-dirs: .
 
   validate-presets:

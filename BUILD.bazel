@@ -24,7 +24,6 @@ load(
     "zizmor_test",
 )
 load("@tbhb_rules//repo:defs.bzl", "repo_files", "repo_layout_test")
-load("@tbhb_rules_python//:defs.bzl", "pip_audit", "pip_audit_test")
 
 # Every file of the repository, for the whole-tree checks below. Ignored
 # directories are listed in REPO.bazel; these are the gitignored files that
@@ -88,13 +87,10 @@ buildifier_test(
 )
 
 # The repository's shape. Only these top-level directories may exist; add a
-# new one here in the change that first uses it. tools/ holds only the
-# interim/ copy of ascm's PR and attribution scripts.
+# new one here in the change that first uses it.
 repo_layout_test(
     name = "repo_layout_test",
     srcs = [":repo_files"],
-    allowed_subdirs = {"tools": ["interim"]},
-    scripts = {"tools": "pep723"},
     top_level_dirs = [
         ".agents",
         ".claude",
@@ -102,7 +98,6 @@ repo_layout_test(
         ".github",
         ".vale",
         "LICENSES",
-        "tools",
     ],
 )
 
@@ -118,17 +113,6 @@ gitleaks_test(
     name = "gitleaks_test",
     srcs = [":repo_files"],
     config = ".gitleaks.toml",
-)
-
-# The advisory database changes without any input changing: pip_audit_test
-# is the cached check, and CI runs //:pip_audit for a fresh answer.
-pip_audit(
-    name = "pip_audit",
-)
-
-pip_audit_test(
-    name = "pip_audit_test",
-    srcs = [":repo_files"],
 )
 
 # Copyright and licensing information on every file (REUSE.toml, LICENSES/).
@@ -147,11 +131,6 @@ tombi_test(
     name = "tombi_test",
     srcs = [":repo_files"],
     config = "tombi.toml",
-    schemas = {
-        "https://www.schemastore.org/partial-pytest.json": "@schemastore_partial_pytest//file",
-        "https://www.schemastore.org/ruff.json": "@schemastore_ruff//file",
-        "https://www.schemastore.org/uv.json": "@schemastore_uv//file",
-    },
 )
 
 rumdl_test(
@@ -240,12 +219,10 @@ FORMATTERS = [
 
 # Consumers pin the two reusable workflows by commit, and any change to them
 # at main bumps every consumer's pin, so no formatter rewrites them; they
-# change only in a deliberate PR. tools/interim/ is a verbatim copy of ascm's
-# scripts, formatted at the source.
+# change only in a deliberate PR.
 FORMAT_EXCLUDE = [
     ".github/workflows/renovate.yaml",
     ".github/workflows/renovate-config-validator.yaml",
-    "tools/interim/*",
 ]
 
 format(
