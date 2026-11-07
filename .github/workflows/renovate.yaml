@@ -6,15 +6,17 @@
 #
 # A caller repo runs this workflow with `uses:` and gets a Renovate run that
 # targets only that repo (RENOVATE_REPOSITORIES is the caller's
-# `github.repository`). The caller's own checkout supplies
-# `.github/renovate.json5`.
+# `github.repository`). Renovate reads the caller's `.github/renovate.json5`
+# from the repo as its repository config, so the repo's own rules come after
+# the presets it extends. A repo without that file is skipped.
 #
 # Credentials: RENOVATE_CLIENT_ID and RENOVATE_PRIVATE_KEY are org secrets of
 # tbhb-dev, visible to all repos. A reusable workflow does not see the caller's
 # secrets implicitly, so each caller passes both explicitly under `secrets:`.
 #
-# Global-only settings sit in `env:` below. Env overrides the config file, so a
-# consuming repo cannot widen the execution allowlists from its own PRs.
+# Global-only settings sit in `env:` below. Renovate ignores global-only
+# options in a repository config, so a consuming repo cannot widen the
+# execution allowlists from its own PRs.
 name: Renovate
 
 on:
@@ -80,13 +82,6 @@ jobs:
           permission-checks: write
           permission-vulnerability-alerts: read
 
-      # Renovate re-clones the repo inside its container, but the action needs
-      # the config file on the runner filesystem to bind into the container.
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
       - name: Restore repository cache
         if: inputs.repo_cache != 'disabled' && inputs.repo_cache != 'reset'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -114,7 +109,7 @@ jobs:
           RENOVATE_REPOSITORIES: ${{ github.repository }}
           RENOVATE_DRY_RUN: ${{ inputs.dry_run && 'full' || '' }}
           RENOVATE_ONBOARDING: "false"
-          RENOVATE_REQUIRE_CONFIG: ignored
+          RENOVATE_REQUIRE_CONFIG: required
           RENOVATE_USERNAME: tbhb-dev-renovate[bot]
           RENOVATE_GIT_AUTHOR: "tbhb-dev-renovate[bot] <289255489+tbhb-dev-renovate[bot]@users.noreply.github.com>"
           RENOVATE_PR_CONCURRENT_LIMIT: "0"
@@ -140,7 +135,6 @@ jobs:
           # shared "renovate" group moves both in one PR.
           # renovate: datasource=docker depName=ghcr.io/renovatebot/renovate
           renovate-image: ghcr.io/renovatebot/renovate:44.206.2@sha256:d515a99f5d14d1c62b792ee61339d165dd9d20ee82ca9d5379daf639050bab51
-          configurationFile: .github/renovate.json5
           token: ${{ steps.token.outputs.token }}
 
       - name: Save repository cache
