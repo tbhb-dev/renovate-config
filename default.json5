@@ -117,10 +117,14 @@
     },
 
     // The pinned preset references in every consumer's .github/renovate.json5
-    // move together, one PR per consumer.
+    // move together, one PR per consumer. First-party and reviewed before it
+    // merges, so a consumer takes a renovate-config commit as soon as it
+    // lands instead of after the 5-day cooldown above, which is for
+    // third-party releases.
     {
       matchPackageNames: ["tbhb-dev/renovate-config"],
       groupName: "renovate-config",
+      minimumReleaseAge: null,
       automerge: false,
     },
     // The same references pinned to a branch (`// main`, `# main`) come from
@@ -128,6 +132,7 @@
     {
       matchDepNames: ["tbhb-dev/renovate-config"],
       groupName: "renovate-config",
+      minimumReleaseAge: null,
       automerge: false,
     },
     // A reusable-workflow `uses:` pinned to a branch is the git-refs
