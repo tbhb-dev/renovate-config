@@ -20,7 +20,7 @@ dev = [
   # The interim PR and identity scripts validate drafts and frontmatter at run time.
   "jsonschema[format]>=4.26.0",
   "pip-audit>=2.10.1",
-  # Installs and runs the git hooks (tools/interim/install.sh).
+  # Runs the git hooks that `tbhbdev alpha install` installs.
   "prek==0.5.9",
   "pyyaml>=6.0.3",
 ]
