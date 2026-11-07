@@ -16,6 +16,8 @@ load(
     "reuse_test",
     "rumdl_test",
     "ryl_test",
+    "shellcheck_test",
+    "shfmt_test",
     "tombi_test",
     "vale_sync",
     "vale_test",
@@ -173,6 +175,21 @@ zizmor_test(
     name = "zizmor_test",
     srcs = [":repo_files"],
     config = ".github/zizmor.yml",
+)
+
+# Shell scripts are selected by extension and by shebang. shfmt reads its
+# style from .editorconfig. The repository has no shell scripts today, so
+# allow_empty keeps both checks wired for a script added later.
+shellcheck_test(
+    name = "shellcheck_test",
+    srcs = [":repo_files"],
+    allow_empty = True,
+)
+
+shfmt_test(
+    name = "shfmt_test",
+    srcs = [":repo_files"],
+    allow_empty = True,
 )
 
 codeowners_test(
