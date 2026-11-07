@@ -61,8 +61,8 @@ never run on GitHub-hosted runners:
 - One post-upgrade command, `bazelisk run //:preset.update`, matched by an
   anchored regular expression in the workflow `env` and attached only to the
   Bazel version group.
-- Both allowlists live in the workflow `env`, which overrides config files,
-  so a repo PR can't widen them.
+- Both allowlists live in the workflow `env`. They're global-only options,
+  which Renovate ignores in a repo's config, so a repo PR can't widen them.
 - Each run creates its own App token, limited to the calling repo, and
   downscoped to the permissions Renovate needs.
 - Renovate never merges an update that ran a command on its own.
