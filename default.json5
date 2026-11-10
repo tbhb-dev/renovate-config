@@ -134,6 +134,10 @@
       groupName: "renovate-config",
       minimumReleaseAge: null,
       automerge: false,
+      // Internal fan-out: every merge here would otherwise open a PR in each
+      // consumer. Two three-hour windows a day (UTC) batch them; a window
+      // spans several hourly runs, so one dropped run doesn't skip it.
+      schedule: ["* 5-7,17-19 * * *"],
     },
     // A reusable-workflow `uses:` pinned to a branch is the git-refs
     // manager's. The github-actions manager would read `main` as a tag and
