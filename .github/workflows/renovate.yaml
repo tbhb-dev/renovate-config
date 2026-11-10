@@ -218,3 +218,9 @@ jobs:
         with:
           path: ${{ env.cache_dir }}
           key: ${{ env.cache_key }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      # The runners are shared self-hosted pools, so the log must not outlive
+      # the job.
+      - name: Remove Renovate log
+        if: always()
+        run: rm -f "${LOG_FILE}"
