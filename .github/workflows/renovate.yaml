@@ -62,6 +62,8 @@ jobs:
     env:
       cache_dir: /tmp/renovate/cache/renovate/repository
       cache_key: renovate-cache
+      # Outside the cached subtree; unique for every run and retry.
+      LOG_FILE: /tmp/renovate/renovate-${{ github.run_id }}-${{ github.run_attempt }}.ndjson
     steps:
       # GITHUB_TOKEN cannot satisfy Renovate's scope and cannot push workflow
       # files, so mint a short-lived installation token from the
@@ -97,15 +99,19 @@ jobs:
       - name: Prepare cache directory
         run: |
           mkdir -p "${cache_dir}"
+          rm -f "${LOG_FILE}"
           chmod -R a+rwX /tmp/renovate/
 
       # GITHUB_COM_TOKEN is deliberately not set. The platform token already
       # authenticates github.com reads (presets, changelogs) and the presets
       # are public. Add it only if a run reports github.com rate limiting.
       - name: Self-hosted Renovate
+        id: renovate
         uses: renovatebot/github-action@1c0cf989c02653fba0efe7ca5772338860ca71dc # v46.3.12
         env:
           LOG_LEVEL: ${{ inputs.log_level }}
+          # Info includes the completion marker even on a clean run.
+          LOG_FILE_LEVEL: info
           RENOVATE_REPOSITORIES: ${{ github.repository }}
           RENOVATE_DRY_RUN: ${{ inputs.dry_run && 'full' || '' }}
           RENOVATE_ONBOARDING: "false"
@@ -138,6 +144,73 @@ jobs:
           # renovate: datasource=docker depName=ghcr.io/renovatebot/renovate
           renovate-image: ghcr.io/renovatebot/renovate:44.206.2@sha256:d515a99f5d14d1c62b792ee61339d165dd9d20ee82ca9d5379daf639050bab51
           token: ${{ steps.token.outputs.token }}
+          additional-env-list: |
+            LOG_FILE
+            LOG_FILE_LEVEL
+
+      - name: Check Renovate log
+        id: check-renovate-log
+        if: always() && steps.renovate.outcome != 'skipped'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -f "${LOG_FILE}" ]]; then
+            echo '::error::Renovate log file is missing'
+            exit 1
+          fi
+          if [[ ! -s "${LOG_FILE}" ]]; then
+            echo '::error::Renovate log file is empty'
+            exit 1
+          fi
+
+          # Suppress parser diagnostics: they can quote private log contents.
+          if ! report=$(jq -s '
+            [
+              # Branch updates failed when the runner ran out of disk.
+              "Error updating branch",
+              # Lockfile updates failed in bazel mod deps or install-tool bazelisk.
+              "artifactErrors",
+              # The same failed Bazel lockfile updates.
+              "Failed to update MODULE.bazel.lock"
+            ] as $failures
+            | if length == 0 or any(.[];
+                type != "object" or
+                (.level | type) != "number" or (.msg | type) != "string")
+              then error("Invalid log records") else . end
+            | {
+                entries: length,
+                completed: any(.[]; .msg == "Repository finished"),
+                failures: [
+                  .[] | . as $entry
+                  | ($failures | map(select(. == $entry.msg)) | .[0]) as $failure
+                  | select($failure != null or .level >= 50)
+                  | {
+                      label: (if .level >= 50 then "error-level entry" else $failure end),
+                      branch: (if (.branch | type) == "string" then
+                        if (.branch | test("^[A-Za-z0-9._/-]{1,200}$"))
+                          and (.branch | contains("\n") | not)
+                        then .branch else "(no branch)" end
+                        else "(no branch)" end)
+                    }
+                ]
+              }
+          ' "${LOG_FILE}" 2>/dev/null); then
+            echo '::error::Renovate log file is unparseable'
+            exit 1
+          fi
+
+          # Only fixed labels and validated branches can reach annotations.
+          jq -r '.failures[] | "::error::\(.label) (branch: \(.branch))"' <<< "${report}"
+          completed=$(jq -r '.completed' <<< "${report}")
+          failure_count=$(jq '.failures | length' <<< "${report}")
+          if [[ ${completed} != true ]]; then
+            echo '::error::Renovate log is missing the end-of-run marker'
+            exit 1
+          fi
+          if [[ ${failure_count} -gt 0 ]]; then
+            exit 1
+          fi
+          jq -r '"Renovate log check: \(.entries) entries, \(.failures | length) failures"' <<< "${report}"
 
       - name: Save repository cache
         if: always() && inputs.repo_cache != 'disabled'

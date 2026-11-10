@@ -7,6 +7,7 @@
 # .bazel_env/bin (`bazel run //:bazel_env` builds them), never `bazel run`, so
 # a running build's server lock can't stall a commit. They are the fast per-file
 # subset; `bazel test //...` runs every gate, whole-tree ones included.
+# The pre-push stage runs the cspell and Vale targets.
 default_stages: [pre-commit]
 
 # Never touch Vale's synced style packages, build output, scratch work, agent
@@ -111,4 +112,15 @@ repos:
         entry: tbhbdev alpha identity stamp-docs
         stages: [pre-commit]
         types: [markdown]
+        pass_filenames: false
+
+  # Spelling and prose scan the whole tree, so run them before each push.
+  - repo: local
+    hooks:
+      - id: spelling-and-prose
+        name: cspell and vale
+        language: system
+        entry: bazelisk test //:cspell_test //:vale_test
+        stages: [pre-push]
+        always_run: true
         pass_filenames: false
