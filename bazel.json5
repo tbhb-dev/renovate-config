@@ -125,6 +125,9 @@
       groupName: "tbhb_rules",
       minimumReleaseAge: null,
       automerge: false,
+      // Internal fan-out: batch rules bumps into two three-hour windows a
+      // day (UTC) instead of one consumer PR per rules merge.
+      schedule: ["* 5-7,17-19 * * *"],
     },
 
     // SchemaStore moves constantly; take it once a month, early.
