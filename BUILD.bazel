@@ -4,6 +4,7 @@
 load("@bazel_env.bzl", "bazel_env")
 load("@bazelrc-preset.bzl", "bazelrc_preset")
 load("@buildifier_prebuilt//:rules.bzl", "buildifier", "buildifier_test")
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
 load("@tbhb_rules//format:defs.bzl", "format", "format_test")
 load(
     "@tbhb_rules//lint:defs.bzl",
@@ -258,4 +259,15 @@ bazel_env(
         "vale": "@tbhb_rules_vale//:vale",
         "zizmor": "@tbhb_rules_zizmor//:zizmor",
     },
+)
+
+# Exercise the inline workflow script with local logs, without Renovate.
+sh_test(
+    name = "renovate_log_check_test",
+    size = "small",
+    srcs = ["renovate_log_check_test.sh"],
+    data = [
+        ".github/workflows/renovate.yaml",
+        "renovate_log_check_test.py",
+    ],
 )

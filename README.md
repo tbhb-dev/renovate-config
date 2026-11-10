@@ -4,6 +4,12 @@ Shared self-hosted Renovate setup for the tbhb-dev repositories. It holds
 five presets and two reusable workflows: one runs Renovate for the calling
 repo, and the other validates that repo's Renovate configuration.
 
+The Renovate workflow checks its JSON file log after each run, failing on
+missing, empty, invalid, or incomplete logs. Error or fatal entries and the
+known failures `Error updating branch`, `artifactErrors`, and
+`Failed to update MODULE.bazel.lock` also fail the job. The workflow defines
+this allowlist. Annotations show only a fixed label and a validated branch.
+
 ## Contents
 
 | Path | Purpose |

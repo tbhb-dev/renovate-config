@@ -35,6 +35,7 @@ use_repo(
 )
 
 # Dev dependencies: tooling that only this workspace needs.
+bazel_dep(name = "rules_shell", version = "0.6.1", dev_dependency = True)
 bazel_dep(name = "buildifier_prebuilt", version = "10.1.0", dev_dependency = True)
 bazel_dep(name = "bazelrc-preset.bzl", version = "1.10.0", dev_dependency = True)
 

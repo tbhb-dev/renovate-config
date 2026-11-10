@@ -21,8 +21,11 @@ mcpjson
 nobuild
 nocache
 noexperimental
+noprofile
+norc
 noremote
 nosandbox
+pipefail
 prek
 prek's
 renovatebot
@@ -44,6 +47,7 @@ tombi
 tombi's
 tricolon
 uncomparables
+unparseable
 worktrees
 zizmor
 zizmor's
