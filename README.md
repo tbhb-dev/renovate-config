@@ -56,7 +56,11 @@ Worker repos add `github>tbhb-dev/renovate-config//cloudflare-worker.json5#<sha>
 after `bazel.json5` in their `extends` list.
 
 Renovate PRs auto-merge after the main ruleset's required approval and CI
-checks pass. Consumer repos must enable "Allow auto-merge" in GitHub
+checks pass. Before Renovate starts, the workflow checks active rules on
+`main` using the Renovate App token. It requires at least one approving
+review and a status-check rule. Every applied ruleset must report that the
+App can never bypass it. Missing protection or a failed API check stops
+the run. Consumer repos must enable "Allow auto-merge" in GitHub
 settings for native auto-merge.
 
 Extend `ansible.json5` only from a repository whose root `MODULE.bazel`

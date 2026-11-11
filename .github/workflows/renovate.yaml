@@ -84,6 +84,58 @@ jobs:
           permission-checks: write
           permission-vulnerability-alerts: read
 
+      # Shared presets enable automerge. GitHub must merge only behind an
+      # approval and status-check ruleset, so a repo without one must not run.
+      - name: Audit automerge rulesets
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'PYCODE'
+          import json
+          import os
+          import subprocess
+          import sys
+
+          def fail(message):
+              print(f"::error::{message}")
+              sys.exit(1)
+
+          def api(endpoint, paginate=False):
+              flags = ["--paginate", "--slurp"] if paginate else []
+              result = subprocess.run(["gh", "api", *flags, endpoint], check=True, capture_output=True, text=True)
+              return json.loads(result.stdout)
+
+          try:
+              repo = os.environ["REPO"]
+              # Only active rules are returned, including inherited rulesets.
+              pages = api(f"repos/{repo}/rules/branches/main?per_page=100", paginate=True)
+              if not isinstance(pages, list) or any(not isinstance(page, list) for page in pages):
+                  fail("Could not verify default branch rules")
+              rules = [rule for page in pages for rule in page]
+              approvals = [
+                  (rule.get("parameters") or {}).get("required_approving_review_count", 0)
+                  for rule in rules if rule.get("type") == "pull_request"
+              ]
+              if not any(type(count) is int and count >= 1 for count in approvals):
+                  fail("Default branch has no approval rule requiring at least one review")
+              if not any(rule.get("type") == "required_status_checks" for rule in rules):
+                  fail("Default branch has no status-check rule")
+              ids = set()
+              for rule in rules:
+                  ruleset_id = rule.get("ruleset_id")
+                  if type(ruleset_id) is not int or ruleset_id < 1:
+                      fail("Could not verify ruleset bypass protection")
+                  ids.add(ruleset_id)
+              for ruleset_id in sorted(ids):
+                  ruleset = api(f"repos/{repo}/rulesets/{ruleset_id}")
+                  if ruleset.get("current_user_can_bypass") != "never":
+                      fail(f"the Renovate App can bypass ruleset {ruleset_id}")
+              print(f"Automerge ruleset audit: approval and status checks required, {len(ids)} rulesets cannot be bypassed")
+          except (OSError, ValueError, KeyError, TypeError, AttributeError, subprocess.CalledProcessError):
+              fail("Could not verify automerge ruleset protection")
+          PYCODE
+
       - name: Restore repository cache
         if: inputs.repo_cache != 'disabled' && inputs.repo_cache != 'reset'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
