@@ -6,7 +6,7 @@
 # The cron Renovate workflow only fires on schedule, so a malformed config on
 # main can sit unnoticed until the next run.
 #
-# Two checks run, because the validator alone is not enough:
+# Three checks run, because the validator alone is not enough:
 #
 # 1. `renovate-config-validator --strict` over every path in `configs`, from
 #    the same digest-pinned image the Renovate workflow runs.
@@ -14,6 +14,9 @@
 #    `github>owner/repo//file#ref` that points at nothing still validates, and
 #    Renovate later fails with config-presets-invalid and quietly stops opening
 #    PRs. The second step fetches each reference at the `#ref` it names.
+# 3. Every pinned `tbhb-dev/renovate-config` preset and reusable workflow
+#    reference must use the same full 40-character commit sha. Repositories
+#    without these references pass.
 #
 # The workflow runs against the CALLER's checkout, so the check script is
 # inlined here rather than committed as a file.
@@ -137,3 +140,38 @@ jobs:
             -v "${RUNNER_TEMP}/check-preset-refs.mjs:/check-preset-refs.mjs:ro" \
             -w /repo "${RENOVATE_IMAGE}" \
             /check-preset-refs.mjs "${configs[@]}"
+
+      - name: Check renovate-config pin consistency
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          import re
+          import sys
+
+          pins = []
+          preset = re.compile(r'''["']github>tbhb-dev/renovate-config//[^"'#\s]+#([^"'\s]*)["']''')
+          workflow = re.compile(
+              r'''^\s*(?:-\s+)?uses:\s*["']?tbhb-dev/renovate-config/\.github/workflows/[^@\s]+@([^\s"'#]*)''',
+              re.MULTILINE,
+          )
+          # Remove comments without touching markers inside quoted strings.
+          tokens = re.compile(r'''"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|//[^\n]*|/\*.*?\*/''', re.DOTALL)
+          for name in os.environ["CONFIGS"].splitlines():
+              if name.strip():
+                  source = tokens.sub(lambda m: m[0] if m[0][0] in "\"'" else "", Path(name).read_text())
+                  pins.extend((name, ref) for ref in preset.findall(source))
+          for path in sorted(Path(".github/workflows").glob("*")):
+              if path.suffix in (".yml", ".yaml"):
+                  pins.extend((str(path), ref) for ref in workflow.findall(path.read_text()))
+
+          valid = lambda ref: re.fullmatch(r"[0-9a-f]{40}", ref) is not None
+          if any(not valid(ref) for _, ref in pins) or len({ref for _, ref in pins}) > 1:
+              for name, ref in pins:
+                  # File paths may contain workflow command delimiters or newlines.
+                  name = name.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+                  label = ref if valid(ref) else "(non-sha ref)"
+                  print(f"::error::renovate-config pins must use one full sha: {name}: {label}")
+              sys.exit(1)
+          print(f"renovate-config pin consistency: {len(pins)} references, all pins consistent")
+          PY
