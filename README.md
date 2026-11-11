@@ -51,6 +51,10 @@ jobs:
 
 A preset reference must include the `.json5` suffix.
 
+Renovate PRs auto-merge after the main ruleset's required approval and CI
+checks pass. Consumer repos must enable "Allow auto-merge" in GitHub
+settings for native auto-merge.
+
 Extend `ansible.json5` only from a repository whose root `MODULE.bazel`
 declares `ansible.collections`. The lock task runs at the repository root,
 so it rewrites the `requirements.lock.json` that tag names. A repository
@@ -81,5 +85,10 @@ never run on GitHub-hosted runners:
   which Renovate ignores in a repo's config, so a repo PR can't widen them.
 - Each run creates its own App token, limited to the calling repo, and
   downscoped to the permissions Renovate needs.
-- Renovate never merges an update that ran a command on its own.
+- The reviews App approves updates that ran commands only when the diff
+  touches manifests and lock files, plus the generated file named in
+  `fileFilters` for post-upgrade tasks. This covers post-upgrade tasks,
+  `bazel mod deps`, and lock maintenance. These PRs auto-merge after the
+  required review and CI pass. Lock maintenance also needs a human to tick
+  its Dependency Dashboard box before it runs.
 - Commits go through the GitHub API (`platformCommit`), so GitHub signs them.
