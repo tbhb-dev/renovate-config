@@ -271,3 +271,14 @@ sh_test(
         "renovate_log_check_test.py",
     ],
 )
+
+# Exercise the inline range check against Git history and a fake GitHub API.
+sh_test(
+    name = "renovate_pin_range_test",
+    size = "small",
+    srcs = ["renovate_pin_range_test.sh"],
+    data = [
+        ".github/workflows/renovate-config-validator.yaml",
+        "renovate_pin_range_test.py",
+    ],
+)
