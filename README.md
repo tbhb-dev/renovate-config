@@ -50,12 +50,34 @@ jobs:
       RENOVATE_PRIVATE_KEY: ${{ secrets.RENOVATE_PRIVATE_KEY }}
 ```
 
+The validator caller runs on PRs that change the Renovate config, the
+workflows, or a `tbhb_rules` pin. The pin checks then see every bump:
+
+```yaml
+on:
+  pull_request:
+    paths:
+      - ".github/renovate.json5"
+      - ".github/workflows/*.yaml"
+      - ".github/workflows/*.yml"
+      - "MODULE.bazel"
+      - "**/*.bzl"
+
+jobs:
+  validate:
+    uses: tbhb-dev/renovate-config/.github/workflows/renovate-config-validator.yaml@<sha> # main
+    with:
+      configs: .github/renovate.json5
+```
+
 A preset reference must include the `.json5` suffix.
 
 The validator requires
 all `tbhb-dev/renovate-config` preset and reusable workflow pins in a consumer
 to use the same full 40-character commit hash. Repositories without these
-references pass the check.
+references pass the check. Renovate keeps them in step: every
+`tbhb-dev/renovate-config` reference, preset or workflow, joins the
+`renovate-config` group in `default.json5`, so one PR moves them all.
 
 Worker repos add `github>tbhb-dev/renovate-config//cloudflare-worker.json5#<sha>`
 after `bazel.json5` in their `extends` list.
