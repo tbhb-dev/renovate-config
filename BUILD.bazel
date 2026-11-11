@@ -271,3 +271,14 @@ sh_test(
         "renovate_log_check_test.py",
     ],
 )
+
+# Keep post-upgrade commands and the workflow allowlist in exact agreement.
+sh_test(
+    name = "renovate_allowlist_test",
+    size = "small",
+    srcs = ["renovate_allowlist_test.sh"],
+    data = glob(["*.json5"]) + [
+        ".github/workflows/renovate.yaml",
+        "renovate_allowlist_test.py",
+    ],
+)
