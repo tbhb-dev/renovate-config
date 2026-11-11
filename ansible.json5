@@ -17,11 +17,13 @@
     // collection. The command is allowlisted by an anchored regex in the
     // workflow env (RENOVATE_ALLOWED_COMMANDS), not here, so a repo PR
     // cannot widen it. fileFilters limits what the task may add to the
-    // commit. Never automerge: a command ran with the token in the clone.
+    // commit. A command ran with the token in the clone. These PRs automerge
+    // after required CI passes and the reviews App approves a diff limited
+    // to manifests and lock files, including requirements.lock.json in
+    // fileFilters.
     {
       description: "Galaxy collection bumps rewrite requirements.lock.json in-branch",
       matchManagers: ["ansible-galaxy"],
-      automerge: false,
       postUpgradeTasks: {
         commands: ["bazelisk run @tbhb_rules_ansible//:lock"],
         fileFilters: ["**/requirements.lock.json"],

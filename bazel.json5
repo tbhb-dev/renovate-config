@@ -97,14 +97,14 @@
     },
 
     // bazel_dep bumps run `bazel mod deps` (the allowlisted bazelModDeps
-    // execution) to refresh MODULE.bazel.lock. Never automerge anything that
-    // executed code.
+    // execution) to refresh MODULE.bazel.lock. These PRs automerge after
+    // required CI passes and the reviews App approves a diff limited to
+    // manifests and lock files.
     {
       description: "Bazel modules",
       matchManagers: ["bazel-module"],
       matchDepTypes: ["bazel_dep"],
       groupName: "bazel modules",
-      automerge: false,
     },
 
     // First-party and reviewed before it merges, so a consumer takes a rules
@@ -124,7 +124,6 @@
       ],
       groupName: "tbhb_rules",
       minimumReleaseAge: null,
-      automerge: false,
       // Internal fan-out: batch rules bumps into two three-hour windows a
       // day (UTC) instead of one consumer PR per rules merge.
       schedule: ["* 5-7,17-19 * * *"],
@@ -143,12 +142,13 @@
     // bazelrc-preset.bzl. The command is allowlisted by an anchored regex in
     // the workflow env (RENOVATE_ALLOWED_COMMANDS), not here, so a repo PR
     // cannot widen it. fileFilters limits what the task may add to the
-    // commit. Never automerge: a command ran with the token in the clone.
+    // commit. A command ran with the token in the clone. These PRs automerge
+    // after required CI passes and the reviews App approves a diff limited
+    // to manifests, lock files and preset.bazelrc (named in fileFilters).
     {
       description: "Bazel version and preset generator move together; preset.bazelrc is regenerated in-branch",
       matchPackageNames: ["bazelbuild/bazel", "bazelrc-preset.bzl"],
       groupName: "bazel version",
-      automerge: false,
       postUpgradeTasks: {
         commands: ["bazelisk run //:preset.update"],
         fileFilters: ["preset.bazelrc"],

@@ -49,6 +49,11 @@
   // from the container would be unsigned. Values: auto, disabled, enabled.
   platformCommit: "enabled",
 
+  // GitHub merges only after the ruleset's required approval and checks pass.
+  // Renovate's own merge never bypasses them.
+  automerge: true,
+  platformAutomerge: true,
+
   // Enforce the age cooldown strictly: a release younger than
   // minimumReleaseAge is not proposed at all, instead of showing as a pending
   // status check.
@@ -63,13 +68,13 @@
 
   // Refresh the whole locked closure, but only when a human ticks the box on
   // the Dependency Dashboard. The age cooldown cannot reach inside a re-lock,
-  // so approval is the gate. No automerge, ever: lock maintenance can run
-  // package-manager code.
+  // so the dashboard approval gates the refresh. Lock maintenance can run
+  // package-manager code. These PRs automerge after required CI passes and
+  // the reviews App approves a diff limited to manifests and lock files.
   lockFileMaintenance: {
     enabled: true,
     dependencyDashboardApproval: true,
     schedule: ["at any time"],
-    automerge: false,
   },
 
   packageRules: [
@@ -125,7 +130,6 @@
       matchPackageNames: ["tbhb-dev/renovate-config"],
       groupName: "renovate-config",
       minimumReleaseAge: null,
-      automerge: false,
     },
     // The same references pinned to a branch (`// main`, `# main`) come from
     // the git-refs managers below, whose package name is the repository URL.
@@ -133,7 +137,6 @@
       matchDepNames: ["tbhb-dev/renovate-config"],
       groupName: "renovate-config",
       minimumReleaseAge: null,
-      automerge: false,
       // Internal fan-out: every merge here would otherwise open a PR in each
       // consumer. Two three-hour windows a day (UTC) batch them; a window
       // spans several hourly runs, so one dropped run doesn't skip it.
