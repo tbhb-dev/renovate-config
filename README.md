@@ -15,7 +15,7 @@ this allowlist. Annotations show only a fixed label and a validated branch.
 | Path | Purpose |
 |---|---|
 | `.github/workflows/renovate.yaml` | Reusable (`workflow_call`) Renovate run for the caller's repo. Global settings live in its `env`. |
-| `.github/workflows/renovate-config-validator.yaml` | Reusable strict validation, preset-reference resolution, and PR pin-range summaries. |
+| `.github/workflows/renovate-config-validator.yaml` | Reusable strict validation, preset-reference resolution, consistent consumer pins, and PR pin-range summaries. |
 | `.github/workflows/ci.yml` | This repo's gate: `bazel test //...` over the tree, rules' shared repository checks, preset validation, and the `conclusion` job. |
 | `.github/workflows/renovate-self.yaml` | Renovate for this repo, through its own reusable workflow. |
 | `default.json5` | Every repo: best-practices, 5-day cooldown, ignore paths, grouping, Vale and preset-pin managers, `platformCommit`, and PR titles that fit the 72-character squash subject. |
@@ -51,6 +51,11 @@ jobs:
 ```
 
 A preset reference must include the `.json5` suffix.
+
+The validator requires
+all `tbhb-dev/renovate-config` preset and reusable workflow pins in a consumer
+to use the same full 40-character commit hash. Repositories without these
+references pass the check.
 
 Worker repos add `github>tbhb-dev/renovate-config//cloudflare-worker.json5#<sha>`
 after `bazel.json5` in their `extends` list.

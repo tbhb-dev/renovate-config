@@ -293,3 +293,14 @@ sh_test(
         "renovate_pin_range_test.py",
     ],
 )
+
+# Exercise the inline consumer pin check in caller checkout fixtures.
+sh_test(
+    name = "renovate_pin_consistency_test",
+    size = "small",
+    srcs = ["renovate_pin_consistency_test.sh"],
+    data = [
+        ".github/workflows/renovate-config-validator.yaml",
+        "renovate_pin_consistency_test.py",
+    ],
+)
