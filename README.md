@@ -15,7 +15,7 @@ this allowlist. Annotations show only a fixed label and a validated branch.
 | Path | Purpose |
 |---|---|
 | `.github/workflows/renovate.yaml` | Reusable (`workflow_call`) Renovate run for the caller's repo. Global settings live in its `env`. |
-| `.github/workflows/renovate-config-validator.yaml` | Reusable strict validation plus a preset-reference resolution check. |
+| `.github/workflows/renovate-config-validator.yaml` | Reusable strict validation, preset-reference resolution, and PR pin-range summaries. |
 | `.github/workflows/ci.yml` | This repo's gate: `bazel test //...` over the tree, rules' shared repository checks, preset validation, and the `conclusion` job. |
 | `.github/workflows/renovate-self.yaml` | Renovate for this repo, through its own reusable workflow. |
 | `default.json5` | Every repo: best-practices, 5-day cooldown, ignore paths, grouping, Vale and preset-pin managers, `platformCommit`, and PR titles that fit the 72-character squash subject. |
@@ -74,6 +74,14 @@ never run on GitHub-hosted runners:
     with:
       runs_on: tbhb-dev-ubuntu-24-amd64
 ```
+
+## Pin-bump validation
+
+On pull requests, the validator checks changed `tbhb-dev/renovate-config` and
+`tbhb-dev/rules` pins against their upstream `main` branch. Each new pin must
+use a full commit hash on that branch. The job summary lists up to 50 commit
+subjects per range and the changed upstream files. New pins have no previous
+range to list. Other workflow events skip this check.
 
 ## Security model
 

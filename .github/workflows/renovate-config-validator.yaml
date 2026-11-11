@@ -6,7 +6,7 @@
 # The cron Renovate workflow only fires on schedule, so a malformed config on
 # main can sit unnoticed until the next run.
 #
-# Two checks run, because the validator alone is not enough:
+# Three checks run, because the validator alone is not enough:
 #
 # 1. `renovate-config-validator --strict` over every path in `configs`, from
 #    the same digest-pinned image the Renovate workflow runs.
@@ -14,6 +14,9 @@
 #    `github>owner/repo//file#ref` that points at nothing still validates, and
 #    Renovate later fails with config-presets-invalid and quietly stops opening
 #    PRs. The second step fetches each reference at the `#ref` it names.
+# 3. On pull requests, changed renovate-config and tbhb-dev/rules pins must
+#    land on their upstream main branch. Commit ranges and changed upstream
+#    files appear in the job summary. Other events skip this check.
 #
 # The workflow runs against the CALLER's checkout, so the check script is
 # inlined here rather than committed as a file.
@@ -52,6 +55,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       - name: Validate configuration
         run: |
@@ -137,3 +141,125 @@ jobs:
             -v "${RUNNER_TEMP}/check-preset-refs.mjs:/check-preset-refs.mjs:ro" \
             -w /repo "${RENOVATE_IMAGE}" \
             /check-preset-refs.mjs "${configs[@]}"
+
+      - name: Summarize pin-bump ranges
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          from collections import defaultdict
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import subprocess
+          import sys
+          from urllib.parse import quote
+
+          def fail(message):
+              print(f"::error::{message}")
+              sys.exit(1)
+
+          def full_sha(ref):
+              return re.fullmatch(r"[0-9a-f]{40}", ref) is not None
+
+          def git(*args):
+              return subprocess.run(["git", *args], check=True, capture_output=True).stdout
+
+          def api(endpoint):
+              result = subprocess.run(["gh", "api", endpoint], check=True, capture_output=True, text=True)
+              return json.loads(result.stdout)
+
+          configs = {str(Path(name)) for name in os.environ["CONFIGS"].splitlines() if name.strip()}
+          preset = re.compile(r'''["'](github>tbhb-dev/renovate-config//[^"'#\s]+)#([^"'\s]*)["']''')
+          workflow = re.compile(
+              r'''^\s*(?:-\s+)?uses:\s*["']?(tbhb-dev/renovate-config/\.github/workflows/[^@\s]+)@([^\s"'#]*)''',
+              re.MULTILINE,
+          )
+          rules = re.compile(r'''(tbhb-dev/rules/[^\s"'@]+)@([^\s"'#),]*)''')
+          tokens = re.compile(r'''"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|//[^\n]*|/\*.*?\*/|\#[^\n]*''', re.DOTALL)
+
+          def pins(name, source):
+              found = defaultdict(list)
+              if name in configs:
+                  clean = tokens.sub(lambda m: m[0] if m[0][0] in "\"'" else "", source)
+                  for key, ref in preset.findall(clean):
+                      found[("tbhb-dev/renovate-config", key)].append(ref)
+              path = Path(name)
+              if path.parent == Path(".github/workflows") and path.suffix in (".yml", ".yaml"):
+                  for key, ref in workflow.findall(source):
+                      found[("tbhb-dev/renovate-config", key)].append(ref)
+              # Rules action references may also appear outside workflows.
+              for key, ref in rules.findall(source):
+                  found[("tbhb-dev/rules", key)].append(ref)
+              if path.name == "MODULE.bazel" or path.suffix == ".bzl":
+                  clean = tokens.sub(lambda m: m[0] if m[0][0] in "\"'" else "", source)
+                  for body in re.findall(r"\bgit_override\s*\((.*?)\)", clean, re.DOTALL):
+                      if re.search(r'''\bmodule_name\s*=\s*["']tbhb_rules["']''', body):
+                          match = re.search(r'''\bcommit\s*=\s*["']([^"']*)["']''', body)
+                          if match:
+                              found[("tbhb-dev/rules", "git_override:tbhb_rules")].append(match[1])
+              return found
+
+          def source_at(sha, name):
+              # Added and deleted files have no object on one side of the diff.
+              result = subprocess.run(["git", "show", f"{sha}:{name}"], capture_output=True)
+              return result.stdout.decode("utf-8", errors="replace") if result.returncode == 0 else ""
+
+          try:
+              base, head = os.environ["BASE_SHA"], os.environ["HEAD_SHA"]
+              if not full_sha(base) or not full_sha(head):
+                  fail("Pin range check requires full base and head shas")
+              names = git("diff", "--name-only", "--no-renames", "-z", base, head, "--").decode().split("\0")
+              changes = defaultdict(set)
+              for name in filter(None, names):
+                  old, new = pins(name, source_at(base, name)), pins(name, source_at(head, name))
+                  for key, refs in new.items():
+                      previous = list(old.get(key, []))
+                      added = []
+                      for ref in refs:
+                          if ref in previous:
+                              previous.remove(ref)
+                          else:
+                              added.append(ref)
+                      for index, ref in enumerate(added):
+                          before = previous[index] if index < len(previous) else None
+                          changes[(key[0], before, ref)].add(name)
+
+              lines = ["## Pin-bump ranges", ""]
+              for (repo, old, new), files in changes.items():
+                  if not full_sha(new):
+                      fail("Changed pin must use a full 40-character sha")
+                  status = api(f"repos/{repo}/compare/{new}...main").get("status")
+                  if status not in ("identical", "ahead"):
+                      fail(f"Changed pin is not on main: {new}")
+                  lines.extend([f"### {repo}", "", f"    {old or '(new pin)'} -> {new}", "", "Consumer files:", ""])
+                  lines.extend(f"    {name!r}" for name in sorted(files))
+                  if old is None:
+                      lines.extend(["", "New pin has no previous range to compare.", ""])
+                      continue
+                  comparison = api(f"repos/{repo}/compare/{quote(old, safe='')}...{new}?per_page=50&page=1")
+                  lines.extend(["", "Commits (at most 50):", ""])
+                  for commit in comparison["commits"][:50]:
+                      sha = commit["sha"]
+                      if not full_sha(sha):
+                          fail("Pin comparison returned an invalid commit sha")
+                      subject = commit["commit"]["message"].splitlines()[0]
+                      lines.append(f"    {sha[:12]} {subject}")
+                  lines.extend(["", "Changed files:", ""])
+                  lines.extend(f"    {file['filename']!r}" for file in comparison["files"])
+                  lines.append("")
+              if not changes:
+                  lines.append("No pin changes.")
+              # Do not let remote subjects or file names become workflow commands.
+              summary = "\n".join(lines) + "\n"
+              summary = "\n".join(" " + line if line.startswith("::") else line for line in summary.split("\n"))
+              with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as output:
+                  output.write(summary)
+              print(f"Pin range check: {len(changes)} changed pins")
+          except (OSError, ValueError, KeyError, IndexError, TypeError, AttributeError, subprocess.CalledProcessError):
+              fail("Pin range check could not read history or compare pins")
+          PY
