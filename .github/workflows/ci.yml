@@ -72,6 +72,7 @@ jobs:
       configs: |
         default.json5
         bazel.json5
+        cloudflare-worker.json5
         go.json5
         python.json5
         ansible.json5
