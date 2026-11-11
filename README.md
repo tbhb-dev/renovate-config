@@ -89,6 +89,7 @@ never run on GitHub-hosted runners:
   touches manifests and lock files, plus the generated file named in
   `fileFilters` for post-upgrade tasks. This covers post-upgrade tasks,
   `bazel mod deps`, and lock maintenance. These PRs auto-merge after the
-  required review and CI pass. Lock maintenance also needs a human to tick
-  its Dependency Dashboard box before it runs.
+  required review and CI pass. Lock maintenance runs weekly on Monday from
+  00:00 to 03:59 Coordinated Universal Time (UTC). The reviews App approves
+  it only when every newly locked version is at least 5 days old.
 - Commits go through the GitHub API (`platformCommit`), so GitHub signs them.
