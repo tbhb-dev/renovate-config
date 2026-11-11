@@ -1,0 +1,31 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright Tony Burns
+
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+
+  // Only Worker repos extend this preset, after bazel.json5.
+  packageRules: [
+    // tbhb_rules pins the Worker runtime, so a rules bump needs fresh
+    // Worker types in the same branch. The command is allowlisted by an
+    // anchored regex in the workflow env (RENOVATE_ALLOWED_COMMANDS), not
+    // here. fileFilters limits the commit to worker-configuration.d.ts.
+    // These PRs merge automatically after required CI passes and the
+    // reviews App approves a diff limited to manifests, lock files and
+    // worker-configuration.d.ts (named in fileFilters).
+    {
+      description: "tbhb rules bumps regenerate Worker types in-branch",
+      matchPackageNames: [
+        "tbhb-dev/rules",
+        "https://github.com/tbhb-dev/rules",
+        "tbhb_rules*",
+      ],
+      postUpgradeTasks: {
+        commands: ["bazelisk run //:worker_types_test.update"],
+        fileFilters: ["worker-configuration.d.ts"],
+        executionMode: "branch",
+        installTools: { bazelisk: {} },
+      },
+    },
+  ],
+}
