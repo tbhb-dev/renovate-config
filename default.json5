@@ -66,15 +66,13 @@
     minimumReleaseAge: null,
   },
 
-  // Refresh the whole locked closure, but only when a human ticks the box on
-  // the Dependency Dashboard. The age cooldown cannot reach inside a re-lock,
-  // so the dashboard approval gates the refresh. Lock maintenance can run
-  // package-manager code. These PRs automerge after required CI passes and
-  // the reviews App approves a diff limited to manifests and lock files.
+  // Refresh the locked closure weekly. Renovate's cooldown cannot reach
+  // inside a re-lock. The reviews App approves only when the diff touches
+  // manifests and lock files and every newly locked version is at least
+  // 5 days old. These PRs automerge after that approval and required CI.
   lockFileMaintenance: {
     enabled: true,
-    dependencyDashboardApproval: true,
-    schedule: ["at any time"],
+    schedule: ["* 0-3 * * 1"],
   },
 
   packageRules: [
