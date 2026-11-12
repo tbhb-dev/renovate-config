@@ -160,7 +160,9 @@ jobs:
           import re
           import subprocess
           import sys
+          from urllib.error import HTTPError
           from urllib.parse import quote
+          from urllib.request import HTTPRedirectHandler, Request, build_opener
 
           def fail(message):
               print(f"::error::{message}")
@@ -172,9 +174,30 @@ jobs:
           def git(*args):
               return subprocess.run(["git", *args], check=True, capture_output=True).stdout
 
+          class NoRedirect(HTTPRedirectHandler):
+              # A redirect would carry the job token to whatever host it names.
+              def redirect_request(self, *args, **kwargs):
+                  return None
+
           def api(endpoint):
-              result = subprocess.run(["gh", "api", endpoint], check=True, capture_output=True, text=True)
-              return json.loads(result.stdout)
+              # Plain HTTPS keeps the check independent of whether the runner image ships gh.
+              root = os.environ.get("GITHUB_API_URL", "https://api.github.com")
+              request = Request(f"{root}/{endpoint}", headers={
+                  "Authorization": "Bearer " + os.environ["GH_TOKEN"],
+                  "Accept": "application/vnd.github+json",
+                  "X-GitHub-Api-Version": "2022-11-28",
+              })
+              try:
+                  with build_opener(NoRedirect).open(request, timeout=30) as response:
+                      data = response.read()
+              except OSError as error:
+                  # Only the status or exception class: remote text must not reach workflow commands.
+                  detail = f"HTTP {error.code}" if isinstance(error, HTTPError) else type(error).__name__
+                  fail(f"Pin range check could not reach the GitHub API ({detail})")
+              try:
+                  return json.loads(data)
+              except ValueError:
+                  fail("Pin range check: the GitHub API returned unreadable data")
 
           configs = {str(Path(name)) for name in os.environ["CONFIGS"].splitlines() if name.strip()}
           preset = re.compile(r'''["'](github>tbhb-dev/renovate-config//[^"'#\s]+)#([^"'\s]*)["']''')
