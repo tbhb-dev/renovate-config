@@ -122,6 +122,13 @@ class PinRangeTest(unittest.TestCase):
                     elif mode == "chunked-complete":
                         self.wfile.write(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n2\r\n{}\r\n0\r\n\r\n")
                         return
+                    elif mode == "deep":
+                        data = b"[" * 200000 + b"]" * 200000
+                        self.send_response(200)
+                        self.send_header("Content-Length", str(len(data)))
+                        self.end_headers()
+                        self.wfile.write(data)
+                        return
                     elif mode == "big":
                         data = b" " * (8 * 1024 * 1024 + 1)
                         self.send_response(200)
@@ -171,8 +178,9 @@ class PinRangeTest(unittest.TestCase):
                          "BASE_SHA": base, "HEAD_SHA": head, "CONFIGS": "renovate.json5\n",
                          "GH_TOKEN": "fixture-token", "GITHUB_STEP_SUMMARY": str(summary),
                          "GITHUB_API_URL": (api_url or "https://localhost:{port}").format(port=server.server_port),
-                         "SSL_CERT_FILE": str(certificate), "PIN_RANGE_DEADLINE": deadline},
-                    text=True, capture_output=True, check=False,
+                         "SSL_CERT_FILE": str(certificate), "CURL_CA_BUNDLE": str(certificate),
+                         "PIN_RANGE_DEADLINE": deadline},
+                    text=True, capture_output=True, check=False, timeout=120,
                 )
             finally:
                 server.shutdown()
@@ -276,25 +284,36 @@ class PinRangeTest(unittest.TestCase):
                 self.assertEqual(len(calls.splitlines()), 1)
                 self.assertEqual(summary, "")
 
-    def test_chunked_framing_must_be_complete(self):
-        result, summary, calls = self.run_fixture(mode="chunked-truncated")
-        self.assertEqual(result.returncode, 1)
-        self.assertEqual(result.stdout, "::error::Pin range check could not reach the GitHub API (IncompleteRead)\n")
-        self.assertEqual(result.stderr, "")
-        self.assertEqual(len(calls.splitlines()), 1)
-        self.assertEqual(summary, "")
+    def test_complete_chunked_reply_reaches_the_parser(self):
         result, _, _ = self.run_fixture(mode="chunked-complete")
         self.assertTrue(result.stdout.startswith("::error::Changed pin is not on main: "), result.stdout)
 
-    def test_protocol_errors_report_only_the_class(self):
-        for mode, name in (("bad-status", "BadStatusLine"), ("truncated", "IncompleteRead")):
+    def test_deeply_nested_json_is_unreadable(self):
+        result, summary, _ = self.run_fixture(mode="deep")
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stdout, "::error::Pin range check: the GitHub API returned unreadable data\n")
+        self.assertEqual(result.stderr, "")
+        self.assertEqual(summary, "")
+
+    def test_deadline_setting_is_bounded(self):
+        for value in ("0", "-1", "inf", "nan", "61", "soon"):
+            with self.subTest(value=value):
+                result, summary, calls = self.run_fixture(deadline=value)
+                self.assertEqual(result.returncode, 1)
+                self.assertEqual(result.stdout, "::error::Pin range check: PIN_RANGE_DEADLINE must be above 0 and at most 60\n")
+                self.assertEqual(result.stderr, "")
+                self.assertEqual(calls, "")
+                self.assertEqual(summary, "")
+
+    def test_protocol_errors_report_only_the_exit_code(self):
+        for mode in ("bad-status", "truncated", "chunked-truncated"):
             with self.subTest(mode=mode):
                 result, summary, calls = self.run_fixture(mode=mode)
                 self.assertEqual(result.returncode, 1)
-                self.assertEqual(result.stdout, f"::error::Pin range check could not reach the GitHub API ({name})\n")
+                self.assertRegex(result.stdout, r"\A::error::Pin range check could not reach the GitHub API \(curl exit [0-9]+\)\n\Z")
                 self.assertEqual(result.stderr, "")
-                self.assertEqual(summary, "")
                 self.assertEqual(len(calls.splitlines()), 1)
+                self.assertEqual(summary, "")
 
     def test_unreadable_data(self):
         result, summary, _ = self.run_fixture(mode="garbage")
