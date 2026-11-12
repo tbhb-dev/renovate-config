@@ -263,7 +263,8 @@ class PinRangeTest(unittest.TestCase):
         self.assertEqual(summary, "")
 
     def test_non_https_api_url_is_refused(self):
-        for url in ("http://localhost:{port}", "https://user:secret@localhost:{port}", "ftp://localhost:{port}"):
+        for url in ("http://localhost:{port}", "https://user:secret@localhost:{port}", "ftp://localhost:{port}",
+                    "https://localhost:{port}\nheader = \"X-Injected: yes\"", "https://localhost:{port}/\"", "https://localhost:{port} "):
             with self.subTest(url=url):
                 result, summary, calls = self.run_fixture(api_url=url)
                 self.assertEqual(result.returncode, 1)

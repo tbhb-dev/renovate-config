@@ -99,23 +99,73 @@ jobs:
           python3 - <<'PYCODE'
           import json
           import os
+          from pathlib import Path
+          import re
           import subprocess
           import sys
+          import tempfile
+          from urllib.parse import urlparse
 
           def fail(message):
               print(f"::error::{message}")
               sys.exit(1)
 
-          def api(endpoint, paginate=False):
-              flags = ["--paginate", "--slurp"] if paginate else []
-              result = subprocess.run(["gh", "api", *flags, endpoint], check=True, capture_output=True, text=True)
-              return json.loads(result.stdout)
+          def api(endpoint):
+              # curl takes the token on stdin, accepts only https, and follows no redirects.
+              root = os.environ.get("GITHUB_API_URL", "https://api.github.com")
+              parts = urlparse(root)
+              # The allowlist keeps quotes, whitespace, control characters, and "@" out of the curl config line.
+              if (not re.fullmatch(r"[A-Za-z0-9:/._~-]+", root) or parts.scheme != "https" or not parts.hostname
+                      or parts.username is not None or parts.password is not None):
+                  fail("Automerge audit refuses a GitHub API URL that is not plain https")
+              token = os.environ["GH_TOKEN"]
+              if not re.fullmatch(r"[A-Za-z0-9_.-]+", token):
+                  fail("Automerge audit: the job token has unexpected characters")
+              limit = 8 * 1024 * 1024
+              config = "\n".join([
+                  f'url = "{root}/{endpoint}"',
+                  f'header = "Authorization: Bearer {token}"',
+                  'header = "Accept: application/vnd.github+json"',
+                  'header = "X-GitHub-Api-Version: 2022-11-28"',
+              ]) + "\n"
+              with tempfile.TemporaryDirectory() as directory:
+                  output = Path(directory) / "reply"
+                  try:
+                      run = subprocess.run(
+                          ["curl", "--proto", "=https", "--max-time", "60", "--max-filesize", str(limit),
+                           "--fail", "--silent", "--show-error", "--config", "-", "--output", str(output),
+                           "--write-out", "%{http_code}"],
+                          input=config, capture_output=True, text=True, timeout=70, check=False,
+                      )
+                  except subprocess.TimeoutExpired:
+                      fail("Could not verify automerge ruleset protection (the GitHub API answered too slowly)")
+                  except OSError:
+                      fail("Automerge audit could not run curl")
+                  # Only the status or exit code: remote text must not reach workflow commands.
+                  code = run.stdout.strip()
+                  if run.returncode != 0 or code != "200" or (output.exists() and output.stat().st_size > limit):
+                      if run.returncode in (0, 22) and re.fullmatch(r"[0-9]{3}", code) and code != "000":
+                          detail = f"HTTP {code}"
+                      else:
+                          detail = f"curl exit {run.returncode}" if run.returncode != 0 else "unexpected status"
+                      fail(f"Could not verify automerge ruleset protection ({detail})")
+                  try:
+                      return json.loads(output.read_bytes())
+                  except (ValueError, RecursionError):
+                      fail("Could not verify automerge ruleset protection (unreadable data)")
 
           try:
               repo = os.environ["REPO"]
               # Only active rules are returned, including inherited rulesets.
-              pages = api(f"repos/{repo}/rules/branches/main?per_page=100", paginate=True)
-              if not isinstance(pages, list) or any(not isinstance(page, list) for page in pages):
+              pages = []
+              for number in range(1, 11):
+                  page = api(f"repos/{repo}/rules/branches/main?per_page=100&page={number}")
+                  if not isinstance(page, list):
+                      fail("Could not verify default branch rules")
+                  pages.append(page)
+                  if len(page) < 100:
+                      break
+              else:
                   fail("Could not verify default branch rules")
               rules = [rule for page in pages for rule in page]
               approvals = [
@@ -140,7 +190,7 @@ jobs:
                       fail(f"the Renovate App can bypass ruleset {ruleset_id}")
               required = "approval and status checks required" if require_approval else "status checks required, approval check off"
               print(f"Automerge ruleset audit: {required}, {len(ids)} rulesets cannot be bypassed")
-          except (OSError, ValueError, KeyError, TypeError, AttributeError, subprocess.CalledProcessError):
+          except (ValueError, KeyError, TypeError, AttributeError, RecursionError):
               fail("Could not verify automerge ruleset protection")
           PYCODE
 
