@@ -177,7 +177,9 @@ jobs:
               # curl does the HTTP work: it checks chunk framing, never follows redirects without -L, and enforces the limits.
               root = os.environ.get("GITHUB_API_URL", "https://api.github.com")
               parts = urlparse(root)
-              if parts.scheme != "https" or not parts.hostname or parts.username is not None or parts.password is not None:
+              # The allowlist keeps quotes, whitespace, control characters, and "@" out of the curl config line.
+              if (not re.fullmatch(r"[A-Za-z0-9:/._~-]+", root) or parts.scheme != "https" or not parts.hostname
+                      or parts.username is not None or parts.password is not None):
                   fail("Pin range check refuses a GitHub API URL that is not plain https")
               try:
                   deadline = float(os.environ.get("PIN_RANGE_DEADLINE", "60"))
