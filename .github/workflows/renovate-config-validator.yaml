@@ -160,7 +160,8 @@ jobs:
           import re
           import subprocess
           import sys
-          from urllib.parse import quote
+          import tempfile
+          from urllib.parse import quote, urlparse
 
           def fail(message):
               print(f"::error::{message}")
@@ -173,8 +174,59 @@ jobs:
               return subprocess.run(["git", *args], check=True, capture_output=True).stdout
 
           def api(endpoint):
-              result = subprocess.run(["gh", "api", endpoint], check=True, capture_output=True, text=True)
-              return json.loads(result.stdout)
+              # curl does the HTTP work: it checks chunk framing, never follows redirects without -L, and enforces the limits.
+              root = os.environ.get("GITHUB_API_URL", "https://api.github.com")
+              parts = urlparse(root)
+              if parts.scheme != "https" or not parts.hostname or parts.username is not None or parts.password is not None:
+                  fail("Pin range check refuses a GitHub API URL that is not plain https")
+              try:
+                  deadline = float(os.environ.get("PIN_RANGE_DEADLINE", "60"))
+              except ValueError:
+                  deadline = 0
+              if not 0 < deadline <= 60:
+                  fail("Pin range check: PIN_RANGE_DEADLINE must be above 0 and at most 60")
+              token = os.environ["GH_TOKEN"]
+              if not re.fullmatch(r"[A-Za-z0-9_.-]+", token):
+                  fail("Pin range check: the job token has unexpected characters")
+              limit = 8 * 1024 * 1024
+              # The token travels on stdin, so it never shows in a process listing.
+              config = "\n".join([
+                  f'url = "{root}/{endpoint}"',
+                  f'header = "Authorization: Bearer {token}"',
+                  'header = "Accept: application/vnd.github+json"',
+                  'header = "X-GitHub-Api-Version: 2022-11-28"',
+              ]) + "\n"
+              with tempfile.TemporaryDirectory() as directory:
+                  output = Path(directory) / "reply"
+                  try:
+                      run = subprocess.run(
+                          ["curl", "--proto", "=https", "--max-time", str(deadline), "--max-filesize", str(limit),
+                           "--fail", "--silent", "--show-error", "--config", "-", "--output", str(output),
+                           "--write-out", "%{http_code}"],
+                          input=config, capture_output=True, text=True, timeout=deadline + 10, check=False,
+                      )
+                  except subprocess.TimeoutExpired:
+                      fail("Pin range check: the GitHub API answered too slowly")
+                  except OSError:
+                      fail("Pin range check could not run curl")
+                  # Only the status or exit code: remote text must not reach workflow commands.
+                  if run.returncode == 28:
+                      fail("Pin range check: the GitHub API answered too slowly")
+                  if run.returncode == 63 or (output.exists() and output.stat().st_size > limit):
+                      fail("Pin range check: the GitHub API returned too much data")
+                  if run.returncode != 0:
+                      code = run.stdout.strip()
+                      # Exit 22 is --fail on an HTTP error status. Any other exit is a transport failure.
+                      detail = f"HTTP {code}" if run.returncode == 22 and re.fullmatch(r"[0-9]{3}", code) else f"curl exit {run.returncode}"
+                      fail(f"Pin range check could not reach the GitHub API ({detail})")
+                  if run.stdout.strip() != "200":
+                      code = run.stdout.strip()
+                      detail = f"HTTP {code}" if re.fullmatch(r"[0-9]{3}", code) else "no status"
+                      fail(f"Pin range check could not reach the GitHub API ({detail})")
+                  try:
+                      return json.loads(output.read_bytes())
+                  except (ValueError, RecursionError):
+                      fail("Pin range check: the GitHub API returned unreadable data")
 
           configs = {str(Path(name)) for name in os.environ["CONFIGS"].splitlines() if name.strip()}
           preset = re.compile(r'''["'](github>tbhb-dev/renovate-config//[^"'#\s]+)#([^"'\s]*)["']''')
