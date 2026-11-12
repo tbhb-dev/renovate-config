@@ -20,6 +20,9 @@
         "https://github.com/tbhb-dev/rules",
         "tbhb_rules*",
       ],
+      // Its own PR, on the daily pins schedule from bazel.json5, until a live
+      // run shows a grouped branch runs every member's branch-mode task.
+      groupName: "tbhb_rules",
       postUpgradeTasks: {
         commands: ["bazelisk run //:worker_types_test.update"],
         fileFilters: ["worker-configuration.d.ts"],

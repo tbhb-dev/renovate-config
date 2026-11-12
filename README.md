@@ -77,7 +77,24 @@ all `tbhb-dev/renovate-config` preset and reusable workflow pins in a consumer
 to use the same full 40-character commit hash. Repositories without these
 references pass the check. Renovate keeps them in step: every
 `tbhb-dev/renovate-config` reference, preset or workflow, joins the
-`renovate-config` group in `default.json5`, so one PR moves them all.
+`pins` group in `default.json5`, so one PR moves them all.
+
+The `pins` group opens one PR per repository a day, between 05:00 and 08:00
+Coordinated Universal Time. It takes the `renovate-config` and `tbhb_rules`
+pins, plus minor, patch, and digest updates to GitHub Actions and mise tools.
+Renovate opens a separate PR for each major version and each security fix.
+The Bazel version group uses the same window but stays a separate PR, and so
+do `tbhb_rules` bumps in Worker repos, because each runs its own post-upgrade
+task. One failing pin blocks the rest of the group. To exclude one, add a rule to the
+repository's `.github/renovate.json5`:
+
+```json5
+{
+  packageRules: [
+    { matchPackageNames: ["<package>"], groupName: "<package>" },
+  ],
+}
+```
 
 Worker repos add `github>tbhb-dev/renovate-config//cloudflare-worker.json5#<sha>`
 after `bazel.json5` in their `extends` list.

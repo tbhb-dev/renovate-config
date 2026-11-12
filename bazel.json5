@@ -122,11 +122,11 @@
         "https://github.com/tbhb-dev/rules",
         "tbhb_rules*",
       ],
-      groupName: "tbhb_rules",
+      groupName: "pins",
       minimumReleaseAge: null,
-      // Internal fan-out: batch rules bumps into two three-hour windows a
-      // day (UTC) instead of one consumer PR per rules merge.
-      schedule: ["* 5-7,17-19 * * *"],
+      // Internal fan-out: rules bumps join the daily pins PR from
+      // default.json5 instead of one consumer PR per rules merge.
+      schedule: ["* 5-7 * * *"],
     },
 
     // SchemaStore moves constantly; take it once a month, early.
@@ -149,6 +149,9 @@
       description: "Bazel version and preset generator move together; preset.bazelrc is regenerated in-branch",
       matchPackageNames: ["bazelbuild/bazel", "bazelrc-preset.bzl"],
       groupName: "bazel version",
+      // Same daily window as the pins PR, but its own PR until a live run
+      // shows a grouped branch runs every member's branch-mode task.
+      schedule: ["* 5-7 * * *"],
       postUpgradeTasks: {
         commands: ["bazelisk run //:preset.update"],
         fileFilters: ["preset.bazelrc"],
