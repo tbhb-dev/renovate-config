@@ -283,6 +283,17 @@ sh_test(
     ],
 )
 
+# Resolve representative updates through the presets' groups and schedules.
+sh_test(
+    name = "renovate_grouping_test",
+    size = "small",
+    srcs = ["renovate_grouping_test.sh"],
+    data = glob(["*.json5"]) + [
+        "renovate_allowlist_test.py",
+        "renovate_grouping_test.py",
+    ],
+)
+
 # Exercise the inline range check against Git history and a fake GitHub API.
 sh_test(
     name = "renovate_pin_range_test",

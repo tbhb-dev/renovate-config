@@ -93,6 +93,23 @@
       groupName: "github-actions",
     },
 
+    // Pin-only updates (action SHAs, mise tool versions, and, below and in
+    // bazel.json5, the renovate-config and tbhb_rules pins) share one PR per
+    // repository, opened once a day. Its three-hour window spans three
+    // hourly runs, so one dropped run doesn't skip a day. Major versions keep
+    // their own PR: Renovate splits them from a group by default
+    // (separateMajorMinor). Security updates keep theirs too: Renovate's
+    // vulnerabilityAlerts defaults clear groupName and schedule. One failing pin holds
+    // the others back until it's fixed or a repository rule excludes it.
+    // Listed before the runner rule, so hosted runner images keep their group.
+    {
+      description: "Pin-only updates: one daily PR per repository",
+      matchManagers: ["github-actions", "mise"],
+      matchUpdateTypes: ["minor", "patch", "digest", "pin", "pinDigest"],
+      groupName: "pins",
+      schedule: ["* 5-7 * * *"],
+    },
+
     // A hosted runner image (ubuntu-24.04, macos-15, windows-2025) moves as
     // one PR per image: its `runs-on` lines, which the github-actions manager
     // reads, and its matrix entries, which the runner-matrix manager below
@@ -128,19 +145,19 @@
     // third-party releases.
     {
       matchPackageNames: ["tbhb-dev/renovate-config"],
-      groupName: "renovate-config",
+      groupName: "pins",
       minimumReleaseAge: null,
+      schedule: ["* 5-7 * * *"],
     },
     // The same references pinned to a branch (`// main`, `# main`) come from
     // the git-refs managers below, whose package name is the repository URL.
     {
       matchDepNames: ["tbhb-dev/renovate-config"],
-      groupName: "renovate-config",
+      groupName: "pins",
       minimumReleaseAge: null,
       // Internal fan-out: every merge here would otherwise open a PR in each
-      // consumer. Two three-hour windows a day (UTC) batch them; a window
-      // spans several hourly runs, so one dropped run doesn't skip it.
-      schedule: ["* 5-7,17-19 * * *"],
+      // consumer. The daily pins window batches them.
+      schedule: ["* 5-7 * * *"],
     },
     // A reusable-workflow `uses:` pinned to a branch is the git-refs
     // manager's. The github-actions manager would read `main` as a tag and
