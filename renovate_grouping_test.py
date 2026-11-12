@@ -106,6 +106,13 @@ class GroupingTest(unittest.TestCase):
                         "updateType": "digest"}
         self.assertIn("postUpgradeTasks", self.check(WORKER, worker_rules, "tbhb_rules"))
 
+    def test_security_updates_skip_cooldown(self):
+        default = parse_preset((ROOT / "default.json5").read_text())
+        self.assertIs(default.get("osvVulnerabilityAlerts"), True)
+        alerts = default["vulnerabilityAlerts"]
+        self.assertIn("minimumReleaseAge", alerts)
+        self.assertIsNone(alerts["minimumReleaseAge"])
+
     def test_no_post_upgrade_task_in_pins(self):
         for preset in sorted(ROOT.glob("*.json5")):
             for rule in rules(preset.name):
