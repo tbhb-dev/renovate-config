@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright Tony Burns
 
-"""Exercise the inline pin-range script with Git trees and a fake gh API."""
+"""Exercise the inline pin-range script with Git trees and a fake GitHub API server."""
 
+from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 import os
 from pathlib import Path
@@ -10,6 +11,7 @@ import re
 import subprocess
 import tempfile
 import textwrap
+import threading
 import unittest
 
 
@@ -67,44 +69,55 @@ class PinRangeTest(unittest.TestCase):
             subprocess.run(["git", "fast-import", "--quiet"], input=stream, cwd=root, check=True, capture_output=True)
             base, head = [subprocess.check_output(["git", "rev-parse", f"refs/heads/{branch}"], cwd=root).decode().strip()
                           for branch in ("base", "head")]
+            # The step must not need gh: a gh on PATH that fails would break it if used.
             binary = root / "bin"
             binary.mkdir()
             fake = binary / "gh"
-            fake.write_text('''#!/usr/bin/env python3
-import json
-import os
-from pathlib import Path
-import sys
-endpoint = sys.argv[2]
-with open(os.environ["CALLS"], "a") as output:
-    output.write(endpoint + "\\n")
-if os.environ["API_ERROR"] == "yes":
-    print("::warning::private API error", file=sys.stderr)
-    sys.exit(1)
-if endpoint.endswith("...main"):
-    print(json.dumps({"status": os.environ["STATUS"]}))
-else:
-    print(Path(os.environ["RESPONSE"]).read_text())
-''')
+            fake.write_text("#!/bin/sh\necho gh must not be called >&2\nexit 99\n")
             fake.chmod(0o755)
-            response = root / "response.json"
-            response.write_text(json.dumps({
+            response = {
                 "commits": [{"sha": f"{index:040x}", "commit": {"message": "::warning::subject " + str(index) + "\nbody"}}
                             for index in range(55)],
                 "files": [{"filename": "MODULE.bazel"}, {"filename": "::error::file\nnext"}],
-            }))
+            }
+            requests = []
+
+            class Handler(BaseHTTPRequestHandler):
+                def do_GET(self):
+                    requests.append((self.path, self.headers.get("Authorization")))
+                    if api_error:
+                        code, body = 500, {"message": "::warning::private API error"}
+                    elif self.path.endswith("...main"):
+                        code, body = 200, {"status": status}
+                    else:
+                        code, body = 200, response
+                    data = json.dumps(body).encode()
+                    self.send_response(code)
+                    self.send_header("Content-Length", str(len(data)))
+                    self.end_headers()
+                    self.wfile.write(data)
+
+                def log_message(self, *args):
+                    pass
+
+            server = HTTPServer(("127.0.0.1", 0), Handler)
+            threading.Thread(target=server.serve_forever, daemon=True).start()
             summary = root / "summary.md"
-            calls = root / "calls"
-            result = subprocess.run(
-                ["bash", "--noprofile", "--norc", "-e", "-o", "pipefail", "-c", workflow_script()], cwd=root,
-                env={**os.environ, "PATH": str(binary) + os.pathsep + os.environ["PATH"],
-                     "BASE_SHA": base, "HEAD_SHA": head, "CONFIGS": "renovate.json5\n",
-                     "GH_TOKEN": "fixture-token", "GITHUB_STEP_SUMMARY": str(summary),
-                     "CALLS": str(calls), "RESPONSE": str(response), "STATUS": status,
-                     "API_ERROR": "yes" if api_error else "no"},
-                text=True, capture_output=True, check=False,
-            )
-            return result, summary.read_text() if summary.exists() else "", calls.read_text() if calls.exists() else ""
+            try:
+                result = subprocess.run(
+                    ["bash", "--noprofile", "--norc", "-e", "-o", "pipefail", "-c", workflow_script()], cwd=root,
+                    env={**os.environ, "PATH": str(binary) + os.pathsep + os.environ["PATH"],
+                         "BASE_SHA": base, "HEAD_SHA": head, "CONFIGS": "renovate.json5\n",
+                         "GH_TOKEN": "fixture-token", "GITHUB_STEP_SUMMARY": str(summary),
+                         "GITHUB_API_URL": f"http://127.0.0.1:{server.server_port}"},
+                    text=True, capture_output=True, check=False,
+                )
+            finally:
+                server.shutdown()
+                server.server_close()
+            self.assertTrue(all(auth == "Bearer fixture-token" for _, auth in requests))
+            calls = "".join(path + "\n" for path, _ in requests)
+            return result, summary.read_text() if summary.exists() else "", calls
 
     def test_changed_pins_on_main(self):
         for status in ("ahead", "identical"):
@@ -157,7 +170,7 @@ else:
         result, summary, _ = self.run_fixture(api_error=True)
         self.assertEqual(result.returncode, 1)
         self.assertEqual(result.stderr, "")
-        self.assertEqual(result.stdout, "::error::Pin range check could not read history or compare pins\n")
+        self.assertEqual(result.stdout, "::error::Pin range check could not reach the GitHub API (HTTP 500)\n")
         self.assertEqual(summary, "")
 
     def test_new_pins(self):
