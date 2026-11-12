@@ -66,6 +66,11 @@
     minimumReleaseAge: null,
   },
 
+  // Also read advisories from the OSV database, which covers ecosystems and
+  // advisories that GitHub's alerts miss. These PRs take the
+  // vulnerabilityAlerts settings, so they skip the cooldown too.
+  osvVulnerabilityAlerts: true,
+
   // Refresh the whole locked closure, but only when a human ticks the box on
   // the Dependency Dashboard. The age cooldown cannot reach inside a re-lock,
   // so the dashboard approval gates the refresh. Lock maintenance can run
