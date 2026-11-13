@@ -7,7 +7,8 @@ Usage: renovate_bump_pins.py SHA [ROOT]
 
 Rewrites each full commit hash pin in the checkout's JSON, JSON5 and YAML
 files. Exits 1 and names the file when a reference to the repository is left
-on anything but SHA, such as a branch name or a short hash.
+on anything but SHA, such as a branch name or a short hash. A failed run
+leaves a partly changed tree, so callers discard the checkout.
 """
 
 from pathlib import Path
@@ -19,7 +20,7 @@ SUFFIXES = {".json", ".json5", ".yaml", ".yml"}
 SKIP = {".git", ".worktrees", ".venv", ".vale", "node_modules"}
 # Presets use `//file#ref`, workflows use `/path@ref`. The ref ends at a
 # quote, whitespace or comment marker.
-REF = re.compile(r"""(tbhb-dev/renovate-config/[^\s"'#@]*[@#])([^\s"'#]*)""")
+REF = re.compile(r"""(tbhb-dev/renovate-config(?:/[^\s"'#@]*)?[@#])([^\s"'#]*)""")
 FULL = re.compile(r"[0-9a-fA-F]{40}")
 
 

@@ -67,6 +67,13 @@ class BumpPinsTest(unittest.TestCase):
                 self.assertNotIn(OLDER, text)
                 self.assertIn(NEW, text)
 
+    def test_moves_pins_in_json_and_bare_presets(self):
+        write(self.root, "renovate.json", f'{{"extends": ["{PRESET}{OLD}", "github>tbhb-dev/renovate-config#{OLDER}"]}}\n')
+        result = run(self.root)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("moved 2 pins to ccccccc", result.stdout)
+        self.assertEqual((self.root / "renovate.json").read_text().count(NEW), 2)
+
     def test_no_references_and_rerun(self):
         write(self.root, ".github/renovate.json5", "{extends: []}\n")
         self.assertEqual(run(self.root).returncode, 0)
