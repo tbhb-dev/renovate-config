@@ -316,6 +316,17 @@ sh_test(
     ],
 )
 
+# Check that the caller pin bump moves every reference or fails.
+sh_test(
+    name = "renovate_bump_pins_test",
+    size = "small",
+    srcs = ["renovate_bump_pins_test.sh"],
+    data = [
+        "renovate_bump_pins.py",
+        "renovate_bump_pins_test.py",
+    ],
+)
+
 # Exercise the App-token ruleset audit with local GitHub API fixtures.
 sh_test(
     name = "renovate_ruleset_audit_test",
