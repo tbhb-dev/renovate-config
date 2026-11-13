@@ -64,6 +64,13 @@
   vulnerabilityAlerts: {
     enabled: true,
     minimumReleaseAge: null,
+    // The default body adds the advisory text (a prBodyNotes entry, so the
+    // notes section) and the changelogs. Alert PR bodies reached 58 KB, and
+    // the gitleaks_text check on the PR text failed on two of them. This is the default template without {{{notes}}} and
+    // {{{changelogs}}}. The PR then shows no advisory text; find it through
+    // the [SECURITY] title and the Dependabot alert. Any prBodyNotes on an
+    // alert PR, such as a lock reminder, is dropped too.
+    prBodyTemplate: "{{{header}}}{{{table}}}{{{warnings}}}{{{configDescription}}}{{{controls}}}{{{footer}}}",
   },
 
   // Also read advisories from the OSV database, which covers ecosystems and
