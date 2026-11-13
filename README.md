@@ -1,4 +1,4 @@
-# renovate-config
+# `renovate-config`
 
 Shared self-hosted Renovate setup for the tbhb-dev repositories. It holds
 six presets and two reusable workflows: one runs Renovate for the calling
