@@ -1,7 +1,7 @@
 # `renovate-config`
 
 Shared self-hosted Renovate setup for the tbhb-dev repositories. It holds
-six presets and two reusable workflows: one runs Renovate for the calling
+seven presets and two reusable workflows: one runs Renovate for the calling
 repo, and the other validates that repo's Renovate configuration.
 
 The Renovate workflow checks its JSON file log after each run, failing on
@@ -152,6 +152,9 @@ range to list. Other workflow events skip this check.
   and its group in `tbhb-dev/rules`' `cloudflare/`, run from
   `cloudflare/e2e/smoke`, and commits only the smoke Workers'
   `worker-configuration.d.ts` files.
+- The allowlist applies to each repo that runs the workflow. Scoping a preset
+  to one repo is a convention, and no check enforces it. A repo's PR can't add
+  a command, but it can use any listed one.
 - Both allowlists live in the workflow `env`. They're global-only options,
   which Renovate ignores in a repo's config, so a repo PR can't widen them.
 - Each run creates its own App token, limited to the calling repo, and

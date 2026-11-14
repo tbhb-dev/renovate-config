@@ -4,7 +4,8 @@
 {
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
 
-  // Only tbhb-dev/rules extends this preset, after bazel.json5.
+  // Only tbhb-dev/rules extends this preset, after bazel.json5. That is a
+  // convention. The command allowlist is global, not per repo.
   packageRules: [
     // A wrangler bump that moves workerd changes every Worker's generated
     // types, and worker_types_test fails until they are regenerated. The two
@@ -12,11 +13,16 @@
     // workspace, cloudflare/e2e/smoke. The commands are allowlisted by
     // anchored regexes in the workflow env (RENOVATE_ALLOWED_COMMANDS), not
     // here. fileFilters limits the commit to worker-configuration.d.ts.
+    // automerge is off: no one has confirmed that the reviews App's path
+    // limit accepts cloudflare/e2e/smoke/**/worker-configuration.d.ts, so a
+    // human merges these PRs. Delete the line once the App is confirmed to
+    // approve that diff, as it does for cloudflare-worker.json5.
     // The match list is the whole "vitest, playwright and workerd" group in
     // cloudflare/, because a grouped branch may not run a task that only one
     // member carries. A live run on the first such bump is the check.
     {
-      description: "wrangler bumps regenerate the smoke Workers' types in-branch",
+      description: "bumps in the wrangler group regenerate the smoke Workers' types in-branch",
+      automerge: false,
       matchFileNames: ["cloudflare/**/package.json"],
       matchPackageNames: [
         "vitest",
