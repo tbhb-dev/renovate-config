@@ -11,7 +11,7 @@ module(name = "renovate_config")
 bazel_dep(name = "tbhb_rules", version = "0.0.0", dev_dependency = True)
 git_override(
     module_name = "tbhb_rules",
-    commit = "3ab69ae4ab9c2a821dd3ee55a22025ed6fd66345",
+    commit = "ee2995544501ca1baa6f2d091541b759b9ce55ea",
     remote = "https://github.com/tbhb-dev/rules.git",
 )
 
