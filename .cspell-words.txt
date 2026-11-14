@@ -48,6 +48,7 @@ tombi's
 tricolon
 uncomparables
 unparseable
+vitest
 worktrees
 zizmor
 zizmor's

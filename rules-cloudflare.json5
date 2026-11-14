@@ -1,0 +1,41 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright Tony Burns
+
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+
+  // Only tbhb-dev/rules extends this preset, after bazel.json5.
+  packageRules: [
+    // A wrangler bump that moves workerd changes every Worker's generated
+    // types, and worker_types_test fails until they are regenerated. The two
+    // smoke Workers (the root one and the nested one) sit in one Bazel
+    // workspace, cloudflare/e2e/smoke. The commands are allowlisted by
+    // anchored regexes in the workflow env (RENOVATE_ALLOWED_COMMANDS), not
+    // here. fileFilters limits the commit to worker-configuration.d.ts.
+    // The match list is the whole "vitest, playwright and workerd" group in
+    // cloudflare/, because a grouped branch may not run a task that only one
+    // member carries. A live run on the first such bump is the check.
+    {
+      description: "wrangler bumps regenerate the smoke Workers' types in-branch",
+      matchFileNames: ["cloudflare/**/package.json"],
+      matchPackageNames: [
+        "vitest",
+        "@vitest/**",
+        "@cloudflare/vitest-plugin",
+        "wrangler",
+        "playwright",
+        "playwright-core",
+      ],
+      postUpgradeTasks: {
+        commands: [
+          "bazelisk run //:worker_types_test.update",
+          "bazelisk run //nested:worker_types_test.update",
+        ],
+        workingDirTemplate: "cloudflare/e2e/smoke",
+        fileFilters: ["cloudflare/e2e/smoke/**/worker-configuration.d.ts"],
+        executionMode: "branch",
+        installTools: { bazelisk: {} },
+      },
+    },
+  ],
+}

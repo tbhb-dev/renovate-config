@@ -73,6 +73,7 @@ jobs:
         default.json5
         bazel.json5
         cloudflare-worker.json5
+        rules-cloudflare.json5
         go.json5
         python.json5
         ansible.json5
