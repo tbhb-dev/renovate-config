@@ -337,3 +337,15 @@ sh_test(
         "renovate_ruleset_audit_test.py",
     ],
 )
+
+# Extract the awrel MCP client pin from inline and multiline JSON args.
+sh_test(
+    name = "renovate_awrel_pin_test",
+    size = "small",
+    srcs = ["renovate_awrel_pin_test.sh"],
+    data = [
+        "default.json5",
+        "renovate_allowlist_test.py",
+        "renovate_awrel_pin_test.py",
+    ],
+)

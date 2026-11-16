@@ -214,6 +214,20 @@
   ],
 
   customManagers: [
+    // The awrel MCP client version in a JSON args array, on one or many lines:
+    //
+    //   "args": ["run", "go.tbhb.dev/awrel/cmd/awrel@v0.5.0", "mcp"],
+    {
+      customType: "regex",
+      description: "awrel MCP client pin: go.tbhb.dev/awrel/cmd/awrel@vX in .mcp.json",
+      managerFilePatterns: ["/(^|/)\\.mcp\\.json$/"],
+      matchStrings: [
+        "\"go\\.tbhb\\.dev/awrel/cmd/awrel@(?<currentValue>v\\d+\\.\\d+\\.\\d+)\"",
+      ],
+      depNameTemplate: "tbhb-dev/awrel",
+      datasourceTemplate: "github-tags",
+    },
+
     // Hosted runner labels in workflow matrices. The github-actions manager
     // reads a label only from a literal `runs-on:`, so a job with
     // `runs-on: ${{ matrix.os }}` keeps its old image when the others move.
