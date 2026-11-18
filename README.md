@@ -21,7 +21,7 @@ this allowlist. Annotations show only a fixed label and a validated branch.
 | `default.json5` | Every repo: best-practices, 5-day cooldown, ignore paths, grouping, Vale and preset-pin managers, `platformCommit`, and PR titles that fit the 72-character squash subject. |
 | `bazel.json5` | Bazel repos: `bazel` manager on `MODULE.bazel` and `*.bzl`, dugite datasource, Bazel version group with its one post-upgrade task. |
 | `cloudflare-worker.json5` | Worker repos: a `tbhb_rules` bump regenerates `worker-configuration.d.ts` in the same branch. |
-| `rules-cloudflare.json5` | `tbhb-dev/rules` only: a bump of wrangler or its group in `cloudflare/` regenerates both smoke Workers' `worker-configuration.d.ts` in the same branch. |
+| `rules-cloudflare.json5` | `tbhb-dev/rules` only: a bump of wrangler or its group (vitest, playwright) regenerates both smoke Workers' `worker-configuration.d.ts` in the same branch. |
 | `go.json5` | Go repos: `gomodTidy` plus module and toolchain groups. |
 | `python.json5` | uv projects: `pyproject.toml`, `uv.lock`, the uv version pin. |
 | `ansible.json5` | Repos that pin Galaxy collections with `tbhb_rules_ansible`. A collection bump rewrites `requirements.lock.json` in the same branch. |
@@ -149,7 +149,7 @@ range to list. Other workflow events skip this check.
   `worker-configuration.d.ts` through `fileFilters`.
   `rules-cloudflare.json5` attaches `bazelisk run //:worker_types_test.update`
   and `bazelisk run //nested:worker_types_test.update` to bumps of wrangler
-  and its group in `tbhb-dev/rules`' `cloudflare/`, run from
+  and its group in `tbhb-dev/rules`, run from
   `cloudflare/e2e/smoke`, and commits only the smoke Workers'
   `worker-configuration.d.ts` files.
 - The allowlist applies to each repo that runs the workflow. Scoping a preset

@@ -17,13 +17,13 @@
     // limit accepts cloudflare/e2e/smoke/**/worker-configuration.d.ts, so a
     // human merges these PRs. Delete the line once the App is confirmed to
     // approve that diff, as it does for cloudflare-worker.json5.
-    // The match list is the whole "vitest, playwright and workerd" group in
-    // cloudflare/, because a grouped branch may not run a task that only one
-    // member carries. A live run on the first such bump is the check.
+    // The rule has no file match: a grouped branch takes its tasks from the
+    // first-sorted member, which may live outside cloudflare/ (storybook/,
+    // playwright/), so every listed package carries them. A live run on the
+    // first such bump is the check.
     {
       description: "bumps in the wrangler group regenerate the smoke Workers' types in-branch",
       automerge: false,
-      matchFileNames: ["cloudflare/**/package.json"],
       matchPackageNames: [
         "vitest",
         "@vitest/**",
