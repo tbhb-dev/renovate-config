@@ -55,6 +55,7 @@ def resolve(presets, update):
 DEFAULT = ["default.json5"]
 BAZEL = DEFAULT + ["bazel.json5"]
 WORKER = BAZEL + ["cloudflare-worker.json5"]
+RULES_CLOUDFLARE = BAZEL + ["rules-cloudflare.json5"]
 
 
 class GroupingTest(unittest.TestCase):
@@ -105,6 +106,31 @@ class GroupingTest(unittest.TestCase):
                         "depName": "tbhb_rules", "datasource": "git-refs",
                         "updateType": "digest"}
         self.assertIn("postUpgradeTasks", self.check(WORKER, worker_rules, "tbhb_rules"))
+
+    def test_rules_cloudflare(self):
+        commands = [
+            "bazelisk run //:worker_types_test.update",
+            "bazelisk run //nested:worker_types_test.update",
+        ]
+        for name in [
+            "vitest",
+            "@vitest/some-subpackage",
+            "@cloudflare/vitest-plugin",
+            "wrangler",
+            "playwright",
+            "playwright-core",
+        ]:
+            update = {"manager": "npm", "packageName": name,
+                      "depName": name, "datasource": "npm",
+                      "updateType": "minor"}
+            resolved = self.check(RULES_CLOUDFLARE, update, None, schedule=None)
+            self.assertIs(resolved.get("automerge"), False, update)
+            self.assertIn("postUpgradeTasks", resolved, update)
+            self.assertEqual(resolved["postUpgradeTasks"].get("commands"), commands, update)
+        other = {"manager": "npm", "packageName": "typescript",
+                 "depName": "typescript", "datasource": "npm",
+                 "updateType": "minor"}
+        self.assertNotIn("postUpgradeTasks", self.check(RULES_CLOUDFLARE, other, None, schedule=None))
 
     def test_security_updates_skip_cooldown(self):
         default = parse_preset((ROOT / "default.json5").read_text())
