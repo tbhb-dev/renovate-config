@@ -241,9 +241,14 @@ jobs:
           # alone; ansible.json5 attaches the collection lock to
           # ansible-galaxy bumps alone. cloudflare-worker.json5 attaches
           # worker_types_test.update to tbhb_rules bumps in Worker repos.
+          # rules-cloudflare.json5 attaches that command and its nested twin
+          # to bumps of wrangler and its group in tbhb-dev/rules. That scope
+          # is a convention: the allowlist is global, so any repo that runs
+          # this workflow can use these commands from its own config.
           RENOVATE_ALLOWED_COMMANDS: '["^bazelisk run //:preset\\.update$",
             "^bazelisk run @tbhb_rules_ansible//:lock$",
-            "^bazelisk run //:worker_types_test\\.update$"]'
+            "^bazelisk run //:worker_types_test\\.update$",
+            "^bazelisk run //nested:worker_types_test\\.update$"]'
           # The custom.dugite datasource calls api.github.com with hostType
           # "custom", which the platform token does not cover. Registered
           # host-rule tokens are sanitized from Renovate's logs. Keep this

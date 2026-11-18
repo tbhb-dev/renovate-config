@@ -1,7 +1,7 @@
 # `renovate-config`
 
 Shared self-hosted Renovate setup for the tbhb-dev repositories. It holds
-six presets and two reusable workflows: one runs Renovate for the calling
+seven presets and two reusable workflows: one runs Renovate for the calling
 repo, and the other validates that repo's Renovate configuration.
 
 The Renovate workflow checks its JSON file log after each run, failing on
@@ -21,6 +21,7 @@ this allowlist. Annotations show only a fixed label and a validated branch.
 | `default.json5` | Every repo: best-practices, 5-day cooldown, ignore paths, grouping, Vale and preset-pin managers, `platformCommit`, and PR titles that fit the 72-character squash subject. |
 | `bazel.json5` | Bazel repos: `bazel` manager on `MODULE.bazel` and `*.bzl`, dugite datasource, Bazel version group with its one post-upgrade task. |
 | `cloudflare-worker.json5` | Worker repos: a `tbhb_rules` bump regenerates `worker-configuration.d.ts` in the same branch. |
+| `rules-cloudflare.json5` | `tbhb-dev/rules` only: a bump of wrangler or its group (vitest, playwright) regenerates both smoke Workers' `worker-configuration.d.ts` in the same branch. |
 | `go.json5` | Go repos: `gomodTidy` plus module and toolchain groups. |
 | `python.json5` | uv projects: `pyproject.toml`, `uv.lock`, the uv version pin. |
 | `ansible.json5` | Repos that pin Galaxy collections with `tbhb_rules_ansible`. A collection bump rewrites `requirements.lock.json` in the same branch. |
@@ -137,7 +138,7 @@ range to list. Other workflow events skip this check.
 
 - `allowedUnsafeExecutions` allows only `bazelModDeps`. It leaves out `mise`,
   so mise stays in safe mode.
-- Three post-upgrade commands, each matched by an anchored regular expression
+- Four post-upgrade commands, each matched by an anchored regular expression
   in the workflow `env`. `bazel.json5` attaches `bazelisk run //:preset.update`
   to the Bazel version group alone. `ansible.json5` attaches
   `bazelisk run @tbhb_rules_ansible//:lock` to `ansible-galaxy` bumps alone.
@@ -146,6 +147,14 @@ range to list. Other workflow events skip this check.
   `cloudflare-worker.json5` attaches `bazelisk run //:worker_types_test.update`
   to `tbhb_rules` bumps in Worker repos and commits only
   `worker-configuration.d.ts` through `fileFilters`.
+  `rules-cloudflare.json5` attaches `bazelisk run //:worker_types_test.update`
+  and `bazelisk run //nested:worker_types_test.update` to bumps of wrangler
+  and its group in `tbhb-dev/rules`, run from
+  `cloudflare/e2e/smoke`, and commits only the smoke Workers'
+  `worker-configuration.d.ts` files.
+- The allowlist applies to each repo that runs the workflow. Scoping a preset
+  to one repo is a convention, and no check enforces it. A repo's PR can't add
+  a command, but it can use any listed one.
 - Both allowlists live in the workflow `env`. They're global-only options,
   which Renovate ignores in a repo's config, so a repo PR can't widen them.
 - Each run creates its own App token, limited to the calling repo, and
