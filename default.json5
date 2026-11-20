@@ -54,6 +54,13 @@
   automerge: true,
   platformAutomerge: true,
 
+  // Renovate's default (`auto`, which behaves as behind-base-branch) rebases
+  // every open PR after each merge to the base branch; that voids reviews made
+  // at the old head and limits a repo to roughly one merge a day. The rulesets
+  // do not require PRs to be up to date, so `conclusion` only needs the PR's
+  // own head; `conflicted` rebases only when the branch conflicts with the base.
+  rebaseWhen: "conflicted",
+
   // Enforce the age cooldown strictly: a release younger than
   // minimumReleaseAge is not proposed at all, instead of showing as a pending
   // status check.
