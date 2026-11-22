@@ -205,12 +205,15 @@ jobs:
       # The Renovate container runs as uid 12021 and writes the cache. The
       # runner user owns the directory and any restored cache, so it opens
       # them to every uid instead of a chown: the tbhb-dev private runners
-      # block sudo.
+      # block sudo. A pool runner's /tmp can also hold files left by an earlier
+      # run under uid 12021. The runner user can't chmod those, and that uid
+      # can already write them, so only the runner's own files are opened.
       - name: Prepare cache directory
         run: |
           mkdir -p "${cache_dir}"
           rm -f "${LOG_FILE}"
-          chmod -R a+rwX /tmp/renovate/
+          runner_uid=$(id -u)
+          find /tmp/renovate/ -user "${runner_uid}" -exec chmod a+rwX {} +
 
       # GITHUB_COM_TOKEN is deliberately not set. The platform token already
       # authenticates github.com reads (presets, changelogs) and the presets
