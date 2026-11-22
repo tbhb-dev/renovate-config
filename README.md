@@ -157,8 +157,10 @@ range to list. Other workflow events skip this check.
   a command, but it can use any listed one.
 - Both allowlists live in the workflow `env`. They're global-only options,
   which Renovate ignores in a repo's config, so a repo PR can't widen them.
-- Each run creates its own App token, limited to the calling repo, and
-  downscoped to the permissions Renovate needs.
+- Each run creates its own App token, limited to the target repo (the caller,
+  or the repo the `repository` input names), and downscoped to the
+  permissions Renovate needs. A first job rejects any `repository` value that
+  isn't `<organization>/<name>` before the token, audit or cache steps run.
 - The reviews App approves updates that ran commands only when the diff
   touches manifests and lock files, plus the generated file named in
   `fileFilters` for post-upgrade tasks. This covers post-upgrade tasks,
