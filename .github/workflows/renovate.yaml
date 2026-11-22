@@ -6,9 +6,11 @@
 #
 # A caller repo runs this workflow with `uses:` and gets a Renovate run that
 # targets only that repo (RENOVATE_REPOSITORIES is the caller's
-# `github.repository`). Renovate reads the caller's `.github/renovate.json5`
-# from the repo as its repository config, so the repo's own rules come after
-# the presets it extends. A repo without that file is skipped.
+# `github.repository`, or the `repository` input when the central run in
+# renovate-config names one). Renovate reads the target's
+# `.github/renovate.json5` from the repo as its repository config, so the
+# repo's own rules come after the presets it extends. A repo without that file
+# is skipped.
 #
 # Credentials: RENOVATE_CLIENT_ID and RENOVATE_PRIVATE_KEY are org secrets of
 # tbhb-dev, visible to all repos. A reusable workflow does not see the caller's
@@ -42,6 +44,10 @@ on:
         type: string
         description: "Runner label. Private callers pass their tbhb-dev-* label; public callers keep the default"
         default: ubuntu-24.04
+      repository:
+        type: string
+        description: "owner/name of the repository to run for. Empty means the caller's own repository. Only the central run in renovate-config sets it"
+        default: ""
     secrets:
       RENOVATE_CLIENT_ID:
         required: true
@@ -59,7 +65,7 @@ jobs:
     # One run per repo at a time. Never cancel: killing Renovate mid-run can
     # leave a half-pushed branch.
     concurrency:
-      group: renovate-${{ github.repository }}
+      group: renovate-${{ inputs.repository || github.repository }}
       cancel-in-progress: false
     permissions:
       contents: read
@@ -69,6 +75,26 @@ jobs:
       # Outside the cached subtree; unique for every run and retry.
       LOG_FILE: /tmp/renovate/renovate-${{ github.run_id }}-${{ github.run_attempt }}.ndjson
     steps:
+      # The target repository is the caller's own unless the central run names
+      # one. The name must be a plain owner/name in this organization: it
+      # reaches the token scope, the API paths and Renovate's repository list.
+      - name: Resolve target repository
+        id: target
+        env:
+          INPUT_REPOSITORY: ${{ inputs.repository }}
+          CALLER_REPOSITORY: ${{ github.repository }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          repository="${INPUT_REPOSITORY:-${CALLER_REPOSITORY}}"
+          if [[ ! "${repository}" =~ ^${OWNER}/[A-Za-z0-9_.-]+$ ]]; then
+            echo "::error::Repository must be ${OWNER}/<name>"
+            exit 1
+          fi
+          {
+            echo "repository=${repository}"
+            echo "name=${repository#*/}"
+          } >> "${GITHUB_OUTPUT}"
+
       # GITHUB_TOKEN cannot satisfy Renovate's scope and cannot push workflow
       # files, so mint a short-lived installation token from the
       # tbhb-dev-renovate App. The token is scoped to this repository (the
@@ -80,6 +106,7 @@ jobs:
         with:
           client-id: ${{ secrets.RENOVATE_CLIENT_ID }}
           private-key: ${{ secrets.RENOVATE_PRIVATE_KEY }}
+          repositories: ${{ steps.target.outputs.name }}
           permission-contents: write
           permission-pull-requests: write
           permission-issues: write
@@ -93,7 +120,7 @@ jobs:
       - name: Audit automerge rulesets
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
-          REPO: ${{ github.repository }}
+          REPO: ${{ steps.target.outputs.repository }}
           REQUIRE_APPROVAL: ${{ inputs.require_approval }}
         run: |
           python3 - <<'PYCODE'
@@ -199,8 +226,8 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.cache_dir }}
-          key: ${{ env.cache_key }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: ${{ env.cache_key }}-
+          key: ${{ env.cache_key }}-${{ steps.target.outputs.name }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: ${{ env.cache_key }}-${{ steps.target.outputs.name }}-
 
       # The Renovate container runs as uid 12021 and writes the cache. The
       # runner user owns the directory and any restored cache, so it opens
@@ -222,7 +249,7 @@ jobs:
           LOG_LEVEL: ${{ inputs.log_level }}
           # Info includes the completion marker even on a clean run.
           LOG_FILE_LEVEL: info
-          RENOVATE_REPOSITORIES: ${{ github.repository }}
+          RENOVATE_REPOSITORIES: ${{ steps.target.outputs.repository }}
           RENOVATE_DRY_RUN: ${{ inputs.dry_run && 'full' || '' }}
           RENOVATE_ONBOARDING: "false"
           RENOVATE_REQUIRE_CONFIG: required
@@ -335,7 +362,7 @@ jobs:
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.cache_dir }}
-          key: ${{ env.cache_key }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: ${{ env.cache_key }}-${{ steps.target.outputs.name }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       # The runners are shared self-hosted pools, so the log must not outlive
       # the job.
