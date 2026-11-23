@@ -101,7 +101,7 @@ jobs:
             # visibility.
             if target_private=$(gh api "repos/${repository}" --jq .private 2>&1); then
               :
-            elif [[ "${target_private}" == *"HTTP 404"* ]]; then
+            elif [[ "${target_private}" == *"(HTTP 404)" ]]; then
               target_private=true
             else
               echo "::error::Could not read ${repository}: ${target_private}"
@@ -117,7 +117,7 @@ jobs:
               if err=$(gh api "repos/${repository}/contents/.github/workflows/renovate.yaml" --silent 2>&1); then
                 echo "::error::${repository} has its own Renovate caller"
                 exit 1
-              elif [[ "${err}" != *"HTTP 404"* ]]; then
+              elif [[ "${err}" != *"(HTTP 404)" ]]; then
                 echo "::error::Could not read ${repository}: ${err}"
                 exit 1
               fi
@@ -144,7 +144,10 @@ jobs:
     permissions:
       contents: read
     env:
-      cache_dir: /tmp/renovate/cache/renovate/repository
+      # Each target gets its own Renovate base directory, so matrix jobs on a
+      # shared runner filesystem never scan or clean each other's files.
+      base_dir: /tmp/renovate/${{ needs.target.outputs.name }}
+      cache_dir: /tmp/renovate/${{ needs.target.outputs.name }}/cache/renovate/repository
       cache_key: renovate-cache
       # Outside the cached subtree; unique for every target, run, and retry.
       LOG_FILE: /tmp/renovate/renovate-${{ needs.target.outputs.name }}-${{ github.run_id }}-${{ github.run_attempt }}.ndjson
@@ -294,7 +297,7 @@ jobs:
           mkdir -p "${cache_dir}"
           rm -f "${LOG_FILE}"
           runner_uid=$(id -u)
-          find /tmp/renovate/ -user "${runner_uid}" -exec chmod a+rwX {} +
+          find "${base_dir}" -user "${runner_uid}" -exec chmod a+rwX {} +
 
       # GITHUB_COM_TOKEN is deliberately not set. The platform token already
       # authenticates github.com reads (presets, changelogs) and the presets
@@ -307,6 +310,7 @@ jobs:
           # Info includes the completion marker even on a clean run.
           LOG_FILE_LEVEL: info
           RENOVATE_REPOSITORIES: ${{ needs.target.outputs.repository }}
+          RENOVATE_BASE_DIR: ${{ env.base_dir }}
           RENOVATE_DRY_RUN: ${{ inputs.dry_run && 'full' || '' }}
           RENOVATE_ONBOARDING: "false"
           RENOVATE_REQUIRE_CONFIG: required
