@@ -66,7 +66,8 @@ jobs:
     name: Validate target repository
     runs-on: ${{ inputs.runs_on }}
     timeout-minutes: 5
-    permissions: {}
+    permissions:
+      contents: read
     outputs:
       repository: ${{ steps.target.outputs.repository }}
       name: ${{ steps.target.outputs.name }}
@@ -77,12 +78,38 @@ jobs:
           INPUT_REPOSITORY: ${{ inputs.repository }}
           CALLER_REPOSITORY: ${{ github.repository }}
           OWNER: ${{ github.repository_owner }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           repository="${INPUT_REPOSITORY:-${CALLER_REPOSITORY}}"
           name="${repository#*/}"
           if [[ ! "${repository}" =~ ^${OWNER}/[A-Za-z0-9_.-]+$ || "${name}" == "." || "${name}" == ".." ]]; then
             echo "::error::Repository must be ${OWNER}/<name>"
             exit 1
+          fi
+          # A run for another repository has two limits, both read with the
+          # caller's own token, which can read public repositories only.
+          if [[ "${repository}" != "${CALLER_REPOSITORY}" ]]; then
+            caller_private=$(gh api "repos/${CALLER_REPOSITORY}" --jq .private)
+            # A public caller's logs and caches are public, so it must not
+            # process a private repository. A 404 here means private.
+            if ! target_private=$(gh api "repos/${repository}" --jq .private 2>/dev/null); then
+              target_private=true
+            fi
+            if [[ "${caller_private}" == "false" && "${target_private}" != "false" ]]; then
+              echo "::error::A public caller can only target a public repository"
+              exit 1
+            fi
+            # A target with its own caller already has a lock, and a run from
+            # here would not share it. Readable only for a public target.
+            if [[ "${target_private}" == "false" ]]; then
+              if err=$(gh api "repos/${repository}/contents/.github/workflows/renovate.yaml" --silent 2>&1); then
+                echo "::error::${repository} has its own Renovate caller"
+                exit 1
+              elif [[ "${err}" != *"HTTP 404"* ]]; then
+                echo "::error::Could not read ${repository}: ${err}"
+                exit 1
+              fi
+            fi
           fi
           {
             echo "repository=${repository}"
@@ -97,7 +124,8 @@ jobs:
     # One run per target at a time. Never cancel: killing Renovate mid-run can
     # leave a half-pushed branch. GitHub scopes a group to the repository
     # that runs the workflow, so a caller run and a central run for one target
-    # don't share a lock. The central run skips repositories that have a caller.
+    # don't share a lock. The target job refuses a public target that has its
+    # own caller, which narrows the overlap to a caller added mid-run.
     concurrency:
       group: renovate-${{ needs.target.outputs.repository }}
       cancel-in-progress: false
