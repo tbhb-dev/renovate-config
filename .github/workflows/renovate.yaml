@@ -6,9 +6,11 @@
 #
 # A caller repo runs this workflow with `uses:` and gets a Renovate run that
 # targets only that repo (RENOVATE_REPOSITORIES is the caller's
-# `github.repository`). Renovate reads the caller's `.github/renovate.json5`
-# from the repo as its repository config, so the repo's own rules come after
-# the presets it extends. A repo without that file is skipped.
+# `github.repository`, or the `repository` input when the central run in
+# renovate-config names one). Renovate reads the target's
+# `.github/renovate.json5` from the repo as its repository config, so the
+# repo's own rules come after the presets it extends. A repo without that file
+# is skipped.
 #
 # Credentials: RENOVATE_CLIENT_ID and RENOVATE_PRIVATE_KEY are org secrets of
 # tbhb-dev, visible to all repos. A reusable workflow does not see the caller's
@@ -42,6 +44,10 @@ on:
         type: string
         description: "Runner label. Private callers pass their tbhb-dev-* label; public callers keep the default"
         default: ubuntu-24.04
+      repository:
+        type: string
+        description: "owner/name of the repository to run for. Empty means the caller's own repository. Only the central run in renovate-config sets it"
+        default: ""
     secrets:
       RENOVATE_CLIENT_ID:
         required: true
@@ -52,22 +58,101 @@ permissions:
   contents: read
 
 jobs:
+  # The target is the caller's own repository unless the central run names
+  # one. The name reaches the concurrency group, the token scope, the API paths
+  # and Renovate's repository list, so it is validated here, before any of
+  # them uses it.
+  target:
+    name: Validate target repository
+    runs-on: ${{ inputs.runs_on }}
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      repository: ${{ steps.target.outputs.repository }}
+      name: ${{ steps.target.outputs.name }}
+    steps:
+      - name: Resolve target repository
+        id: target
+        env:
+          INPUT_REPOSITORY: ${{ inputs.repository }}
+          CALLER_REPOSITORY: ${{ github.repository }}
+          OWNER: ${{ github.repository_owner }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          repository="${INPUT_REPOSITORY:-${CALLER_REPOSITORY}}"
+          # GitHub resolves repository names without regard to case, so a
+          # value that names the caller in another case is the caller.
+          if [[ "${repository,,}" == "${CALLER_REPOSITORY,,}" ]]; then
+            repository="${CALLER_REPOSITORY}"
+          fi
+          name="${repository#*/}"
+          if [[ ! "${repository}" =~ ^${OWNER}/[A-Za-z0-9_.-]+$ || "${name}" == "." || "${name}" == ".." ]]; then
+            echo "::error::Repository must be ${OWNER}/<name>"
+            exit 1
+          fi
+          # A run for another repository has two limits, both read with the
+          # caller's own token, which can read public repositories only.
+          if [[ "${repository}" != "${CALLER_REPOSITORY}" ]]; then
+            caller_private=$(gh api "repos/${CALLER_REPOSITORY}" --jq .private)
+            # A public caller's logs and caches are public, so it must not
+            # process a private repository. A 404 here means private. Any
+            # other failure stops the job, because it says nothing about
+            # visibility.
+            if target_private=$(gh api "repos/${repository}" --jq .private 2>&1); then
+              :
+            elif [[ "${target_private}" == *"(HTTP 404)" ]]; then
+              target_private=true
+            else
+              echo "::error::Could not read ${repository}: ${target_private}"
+              exit 1
+            fi
+            if [[ "${caller_private}" == "false" && "${target_private}" != "false" ]]; then
+              echo "::error::A public caller can only target a public repository"
+              exit 1
+            fi
+            # A target with its own caller already has a lock, and a run from
+            # here would not share it. Readable only for a public target.
+            if [[ "${target_private}" == "false" ]]; then
+              if err=$(gh api "repos/${repository}/contents/.github/workflows/renovate.yaml" --silent 2>&1); then
+                echo "::error::${repository} has its own Renovate caller"
+                exit 1
+              elif [[ "${err}" != *"(HTTP 404)" ]]; then
+                echo "::error::Could not read ${repository}: ${err}"
+                exit 1
+              fi
+            fi
+          fi
+          {
+            echo "repository=${repository}"
+            echo "name=${name}"
+          } >> "${GITHUB_OUTPUT}"
+
   renovate:
     name: Run self-hosted Renovate
+    needs: target
     runs-on: ${{ inputs.runs_on }}
     timeout-minutes: 60
-    # One run per repo at a time. Never cancel: killing Renovate mid-run can
-    # leave a half-pushed branch.
+    # One run per target at a time. Never cancel: killing Renovate mid-run can
+    # leave a half-pushed branch. GitHub scopes a group to the repository
+    # that runs the workflow, so a caller run and a central run for one target
+    # don't share a lock. The target job refuses a public target that has its
+    # own caller, which narrows the overlap to a caller added mid-run.
     concurrency:
-      group: renovate-${{ github.repository }}
+      group: renovate-${{ needs.target.outputs.repository }}
       cancel-in-progress: false
     permissions:
       contents: read
     env:
-      cache_dir: /tmp/renovate/cache/renovate/repository
+      # Each target gets its own Renovate base directory, so matrix jobs on a
+      # shared runner filesystem never scan or clean each other's files.
+      base_dir: /tmp/renovate/${{ needs.target.outputs.name }}
+      cache_dir: /tmp/renovate/${{ needs.target.outputs.name }}/cache/renovate/repository
       cache_key: renovate-cache
-      # Outside the cached subtree; unique for every run and retry.
-      LOG_FILE: /tmp/renovate/renovate-${{ github.run_id }}-${{ github.run_attempt }}.ndjson
+      # Outside the cached subtree, inside the target's base directory, which
+      # the cache step opens to the container uid; unique for every target,
+      # run, and retry.
+      LOG_FILE: /tmp/renovate/${{ needs.target.outputs.name }}/renovate-${{ github.run_id }}-${{ github.run_attempt }}.ndjson
     steps:
       # GITHUB_TOKEN cannot satisfy Renovate's scope and cannot push workflow
       # files, so mint a short-lived installation token from the
@@ -80,6 +165,7 @@ jobs:
         with:
           client-id: ${{ secrets.RENOVATE_CLIENT_ID }}
           private-key: ${{ secrets.RENOVATE_PRIVATE_KEY }}
+          repositories: ${{ needs.target.outputs.name }}
           permission-contents: write
           permission-pull-requests: write
           permission-issues: write
@@ -93,7 +179,7 @@ jobs:
       - name: Audit automerge rulesets
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
-          REPO: ${{ github.repository }}
+          REPO: ${{ needs.target.outputs.repository }}
           REQUIRE_APPROVAL: ${{ inputs.require_approval }}
         run: |
           python3 - <<'PYCODE'
@@ -199,8 +285,8 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.cache_dir }}
-          key: ${{ env.cache_key }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: ${{ env.cache_key }}-
+          key: ${{ env.cache_key }}-${{ needs.target.outputs.name }}+${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: ${{ env.cache_key }}-${{ needs.target.outputs.name }}+
 
       # The Renovate container runs as uid 12021 and writes the cache. The
       # runner user owns the directory and any restored cache, so it opens
@@ -213,7 +299,7 @@ jobs:
           mkdir -p "${cache_dir}"
           rm -f "${LOG_FILE}"
           runner_uid=$(id -u)
-          find /tmp/renovate/ -user "${runner_uid}" -exec chmod a+rwX {} +
+          find "${base_dir}" -user "${runner_uid}" -exec chmod a+rwX {} +
 
       # GITHUB_COM_TOKEN is deliberately not set. The platform token already
       # authenticates github.com reads (presets, changelogs) and the presets
@@ -225,7 +311,8 @@ jobs:
           LOG_LEVEL: ${{ inputs.log_level }}
           # Info includes the completion marker even on a clean run.
           LOG_FILE_LEVEL: info
-          RENOVATE_REPOSITORIES: ${{ github.repository }}
+          RENOVATE_REPOSITORIES: ${{ needs.target.outputs.repository }}
+          RENOVATE_BASE_DIR: ${{ env.base_dir }}
           RENOVATE_DRY_RUN: ${{ inputs.dry_run && 'full' || '' }}
           RENOVATE_ONBOARDING: "false"
           RENOVATE_REQUIRE_CONFIG: required
@@ -338,7 +425,7 @@ jobs:
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.cache_dir }}
-          key: ${{ env.cache_key }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: ${{ env.cache_key }}-${{ needs.target.outputs.name }}+${{ github.run_id }}-${{ github.run_attempt }}
 
       # The runners are shared self-hosted pools, so the log must not outlive
       # the job.
