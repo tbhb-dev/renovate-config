@@ -149,8 +149,10 @@ jobs:
       base_dir: /tmp/renovate/${{ needs.target.outputs.name }}
       cache_dir: /tmp/renovate/${{ needs.target.outputs.name }}/cache/renovate/repository
       cache_key: renovate-cache
-      # Outside the cached subtree; unique for every target, run, and retry.
-      LOG_FILE: /tmp/renovate/renovate-${{ needs.target.outputs.name }}-${{ github.run_id }}-${{ github.run_attempt }}.ndjson
+      # Outside the cached subtree, inside the target's base directory, which
+      # the cache step opens to the container uid; unique for every target,
+      # run, and retry.
+      LOG_FILE: /tmp/renovate/${{ needs.target.outputs.name }}/renovate-${{ github.run_id }}-${{ github.run_attempt }}.ndjson
     steps:
       # GITHUB_TOKEN cannot satisfy Renovate's scope and cannot push workflow
       # files, so mint a short-lived installation token from the
