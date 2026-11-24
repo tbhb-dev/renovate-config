@@ -88,12 +88,14 @@
       description: "One PR per upstream across platforms",
       matchManagers: ["bazel"],
       groupName: "{{{packageName}}}",
+      rebaseWhen: "conflicted",
     },
 
     {
       description: "git (dugite-native), every platform in one PR",
       matchDatasources: ["custom.dugite"],
       groupName: "git (dugite-native)",
+      rebaseWhen: "conflicted",
     },
 
     // bazel_dep bumps run `bazel mod deps` (the allowlisted bazelModDeps
@@ -105,6 +107,7 @@
       matchManagers: ["bazel-module"],
       matchDepTypes: ["bazel_dep"],
       groupName: "bazel modules",
+      rebaseWhen: "conflicted",
     },
 
     // First-party and reviewed before it merges, so a consumer takes a rules
@@ -127,6 +130,7 @@
       // Internal fan-out: rules bumps join the daily pins PR from
       // default.json5 instead of one consumer PR per rules merge.
       schedule: ["* 5-7 * * *"],
+      rebaseWhen: "behind-base-branch",
     },
 
     // SchemaStore moves constantly; take it once a month, early.
@@ -149,6 +153,7 @@
       description: "Bazel version and preset generator move together; preset.bazelrc is regenerated in-branch",
       matchPackageNames: ["bazelbuild/bazel", "bazelrc-preset.bzl"],
       groupName: "bazel version",
+      rebaseWhen: "conflicted",
       // Same daily window as the pins PR, but its own PR until a live run
       // shows a grouped branch runs every member's branch-mode task.
       schedule: ["* 5-7 * * *"],

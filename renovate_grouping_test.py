@@ -71,7 +71,7 @@ class GroupingTest(unittest.TestCase):
             action = {"manager": "github-actions", "packageName": "actions/checkout",
                       "depName": "actions/checkout", "datasource": "github-tags",
                       "updateType": update_type}
-            self.check(DEFAULT, action, "pins")
+            self.assertEqual(self.check(DEFAULT, action, "pins")["rebaseWhen"], "behind-base-branch")
         tool = {"manager": "mise", "packageName": "vale", "depName": "vale",
                 "datasource": "github-releases", "updateType": "minor"}
         self.check(BAZEL, tool, "pins")
@@ -93,11 +93,11 @@ class GroupingTest(unittest.TestCase):
         runner = {"manager": "github-actions", "packageName": "ubuntu",
                   "depName": "ubuntu", "datasource": "github-runners",
                   "updateType": "minor"}
-        self.check(DEFAULT, runner, "{{{depName}}} runner")
+        self.assertEqual(self.check(DEFAULT, runner, "{{{depName}}} runner")["rebaseWhen"], "conflicted")
         engine = {"manager": "github-actions", "packageName": "ghcr.io/renovatebot/renovate",
                   "depName": "ghcr.io/renovatebot/renovate", "datasource": "docker",
                   "updateType": "minor"}
-        self.check(DEFAULT, engine, "renovate")
+        self.assertEqual(self.check(DEFAULT, engine, "renovate")["rebaseWhen"], "conflicted")
         bazel = {"manager": "bazelisk", "packageName": "bazelbuild/bazel",
                  "depName": "bazel", "datasource": "github-releases",
                  "updateType": "patch"}
@@ -105,7 +105,9 @@ class GroupingTest(unittest.TestCase):
         worker_rules = {"manager": "bazel-module", "packageName": "tbhb_rules",
                         "depName": "tbhb_rules", "datasource": "git-refs",
                         "updateType": "digest"}
-        self.assertIn("postUpgradeTasks", self.check(WORKER, worker_rules, "tbhb_rules"))
+        resolved = self.check(WORKER, worker_rules, "tbhb_rules")
+        self.assertIn("postUpgradeTasks", resolved)
+        self.assertEqual(resolved["rebaseWhen"], "conflicted")
 
     def test_rules_cloudflare(self):
         commands = [
@@ -138,6 +140,22 @@ class GroupingTest(unittest.TestCase):
         alerts = default["vulnerabilityAlerts"]
         self.assertIn("minimumReleaseAge", alerts)
         self.assertIsNone(alerts["minimumReleaseAge"])
+        self.assertEqual(alerts["rebaseWhen"], "conflicted")
+
+    def test_later_groups_reset_rebase(self):
+        """Rules merge field by field, so a group rule after the pins rules must reset rebaseWhen."""
+        for preset in sorted(ROOT.glob("*.json5")):
+            for rule in rules(preset.name):
+                group = rule.get("groupName")
+                if group in (None, "pins") or (preset.name == "default.json5" and group == "github-actions"):
+                    continue
+                self.assertEqual(rule.get("rebaseWhen"), "conflicted", (preset.name, group))
+        for presets, name in [(BAZEL, "bazel"), (BAZEL + ["python.json5"], "uv")]:
+            update = {"manager": "mise", "packageName": name, "depName": name,
+                      "datasource": "github-releases", "updateType": "patch"}
+            if name == "bazel":
+                update["packageName"] = "bazelbuild/bazel"
+            self.assertEqual(resolve(presets, update).get("rebaseWhen"), "conflicted", update)
 
     def test_no_post_upgrade_task_in_pins(self):
         for preset in sorted(ROOT.glob("*.json5")):

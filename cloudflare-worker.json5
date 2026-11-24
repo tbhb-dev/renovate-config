@@ -23,6 +23,9 @@
       // Its own PR, on the daily pins schedule from bazel.json5, until a live
       // run shows a grouped branch runs every member's branch-mode task.
       groupName: "tbhb_rules",
+      // The pins rule in bazel.json5 also matches and sets behind-base-branch.
+      // A rebase would rerun the branch-mode task below on every base move.
+      rebaseWhen: "conflicted",
       postUpgradeTasks: {
         commands: ["bazelisk run //:worker_types_test.update"],
         fileFilters: ["worker-configuration.d.ts"],
