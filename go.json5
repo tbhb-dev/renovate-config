@@ -18,11 +18,13 @@
       matchManagers: ["gomod"],
       matchDepTypes: ["require", "indirect"],
       groupName: "go deps",
+      rebaseWhen: "conflicted",
     },
     {
       description: "The go directive and toolchain move separately from modules",
       matchDatasources: ["golang-version"],
       groupName: "go toolchain",
+      rebaseWhen: "conflicted",
     },
   ],
 }

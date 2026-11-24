@@ -71,6 +71,9 @@
   vulnerabilityAlerts: {
     enabled: true,
     minimumReleaseAge: null,
+    // The alert PR keeps the settings of the rule it matched, so a pin moving
+    // to a security fix would inherit the pins rebase setting without this.
+    rebaseWhen: "conflicted",
     // The default body adds the advisory text (a prBodyNotes entry, so the
     // notes section) and the changelogs. Alert PR bodies reached 58 KB, and
     // the gitleaks_text check on the PR text failed on two of them. This is the default template without {{{notes}}} and
@@ -128,8 +131,8 @@
       groupName: "pins",
       schedule: ["* 5-7 * * *"],
       // Pins PRs are about one per repository, so a rebase voids few reviews.
-      // A major update splits into its own PR, which keeps the default above.
-      // Separate-group rules that overlap this one set `conflicted` again.
+      // Every later rule that sets another groupName sets `conflicted` again,
+      // because matching rules merge field by field. The grouping test checks it.
       rebaseWhen: "behind-base-branch",
     },
 
@@ -151,6 +154,7 @@
       matchManagers: ["npm"],
       matchFileNames: ["**/cspell/**", "package.json"],
       groupName: "cspell",
+      rebaseWhen: "conflicted",
     },
 
     // The Renovate engine image is pinned in renovate.yaml and in the
@@ -202,6 +206,7 @@
       description: "Vale packages: .vale.ini and the MODULE.bazel twins in one PR",
       matchFileNames: [".vale.ini"],
       groupName: "{{{packageName}}}",
+      rebaseWhen: "conflicted",
     },
 
     // PR titles, and the squash subjects made from them, fit 72 characters

@@ -86,13 +86,16 @@ pins, plus minor, patch, and digest updates to GitHub Actions and mise tools.
 Renovate opens a separate PR for each major version and each security fix.
 The Bazel version group uses the same window but stays a separate PR, and so
 do `tbhb_rules` bumps in Worker repos, because each runs its own post-upgrade
-task. One failing pin blocks the rest of the group. To exclude one, add a rule to the
+task. Renovate rebases a pins PR whenever its base branch moves; every other
+PR rebases only on a conflict. A rule that sets another `groupName` must set
+`rebaseWhen: "conflicted"` too, because matching rules merge field by field.
+One failing pin blocks the rest of the group. To exclude one, add a rule to the
 repository's `.github/renovate.json5`:
 
 ```json5
 {
   packageRules: [
-    { matchPackageNames: ["<package>"], groupName: "<package>" },
+    { matchPackageNames: ["<package>"], groupName: "<package>", rebaseWhen: "conflicted" },
   ],
 }
 ```

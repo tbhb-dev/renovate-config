@@ -13,12 +13,14 @@
       description: "Python dependencies in pyproject.toml, with uv.lock refreshed",
       matchManagers: ["pep621"],
       groupName: "python deps",
+      rebaseWhen: "conflicted",
     },
     // The uv version appears as a pinned `required-version` and, in Bazel
     // repos, as release assets. Keep every site in one PR.
     {
       matchPackageNames: ["astral-sh/uv", "uv"],
       groupName: "uv",
+      rebaseWhen: "conflicted",
     },
   ],
 
