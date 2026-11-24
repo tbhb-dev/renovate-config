@@ -59,10 +59,17 @@ jobs:
       RENOVATE_PRIVATE_KEY: ${{ secrets.RENOVATE_PRIVATE_KEY }}
 ```
 
-The push trigger runs Renovate after each merge to `main`, when open PRs fall
-behind. GitHub drops scheduled runs for hours at a time, and the push trigger
-doesn't depend on the schedule. Pick a different `<minute>` per repository so
-the runs don't start together.
+The push trigger runs Renovate on each push to the caller repository's `main`,
+when open PRs can fall behind. Merges in `tbhb-dev/renovate-config` or any other
+repository don't trigger the caller. GitHub drops scheduled runs for hours at a
+time, and the push trigger doesn't depend on the schedule. Pick a different
+`<minute>` per repository to stagger only the scheduled starts.
+
+The reusable workflow defaults `dry_run` to `false`, so the bare
+`workflow_dispatch:` runs Renovate for real at `DEBUG`, as do pushes and
+scheduled runs. To default manual runs to a dry run, copy the
+`workflow_dispatch` inputs and `with:` expressions from
+`.github/workflows/renovate-self.yaml`.
 
 The validator caller runs on PRs that change the Renovate config, the
 workflows, or a `tbhb_rules` pin. The pin checks then see every bump:
