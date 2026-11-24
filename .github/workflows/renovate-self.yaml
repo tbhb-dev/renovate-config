@@ -7,6 +7,11 @@
 name: Renovate (self)
 
 on:
+  # A merge to main is when open PRs fall behind, so it runs Renovate at once.
+  # GitHub drops scheduled runs for hours, and this trigger doesn't depend on
+  # the schedule. The reusable run's concurrency group queues one pending run.
+  push:
+    branches: [main]
   schedule:
     - cron: "7 * * * 1-5"
     - cron: "7 */2 * * 6,0"
@@ -29,7 +34,7 @@ jobs:
   renovate:
     uses: ./.github/workflows/renovate.yaml
     with:
-      # Schedule runs are real runs at DEBUG; manual runs follow the inputs.
+      # Push and schedule runs are real runs at DEBUG; manual runs follow the inputs.
       dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
       log_level: ${{ github.event_name == 'workflow_dispatch' && inputs.log_level || 'DEBUG' }}
     secrets:

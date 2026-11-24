@@ -43,6 +43,14 @@ to the branch's latest commit, or a release tag such as `v1.0.0`:
 ```
 
 ```yaml
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "<minute> * * * 1-5"
+    - cron: "<minute> */2 * * 6,0"
+  workflow_dispatch:
+
 jobs:
   renovate:
     uses: tbhb-dev/renovate-config/.github/workflows/renovate.yaml@<sha> # main
@@ -50,6 +58,11 @@ jobs:
       RENOVATE_CLIENT_ID: ${{ secrets.RENOVATE_CLIENT_ID }}
       RENOVATE_PRIVATE_KEY: ${{ secrets.RENOVATE_PRIVATE_KEY }}
 ```
+
+The push trigger runs Renovate after each merge to `main`, when open PRs fall
+behind. GitHub drops scheduled runs for hours at a time, and the push trigger
+doesn't depend on the schedule. Pick a different `<minute>` per repository so
+the runs don't start together.
 
 The validator caller runs on PRs that change the Renovate config, the
 workflows, or a `tbhb_rules` pin. The pin checks then see every bump:
