@@ -127,6 +127,7 @@
       // Internal fan-out: rules bumps join the daily pins PR from
       // default.json5 instead of one consumer PR per rules merge.
       schedule: ["* 5-7 * * *"],
+      rebaseWhen: "behind-base-branch",
     },
 
     // SchemaStore moves constantly; take it once a month, early.
