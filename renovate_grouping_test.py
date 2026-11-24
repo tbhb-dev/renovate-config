@@ -71,7 +71,7 @@ class GroupingTest(unittest.TestCase):
             action = {"manager": "github-actions", "packageName": "actions/checkout",
                       "depName": "actions/checkout", "datasource": "github-tags",
                       "updateType": update_type}
-            self.check(DEFAULT, action, "pins")
+            self.assertEqual(self.check(DEFAULT, action, "pins")["rebaseWhen"], "behind-base-branch")
         tool = {"manager": "mise", "packageName": "vale", "depName": "vale",
                 "datasource": "github-releases", "updateType": "minor"}
         self.check(BAZEL, tool, "pins")
@@ -93,11 +93,11 @@ class GroupingTest(unittest.TestCase):
         runner = {"manager": "github-actions", "packageName": "ubuntu",
                   "depName": "ubuntu", "datasource": "github-runners",
                   "updateType": "minor"}
-        self.check(DEFAULT, runner, "{{{depName}}} runner")
+        self.assertEqual(self.check(DEFAULT, runner, "{{{depName}}} runner")["rebaseWhen"], "conflicted")
         engine = {"manager": "github-actions", "packageName": "ghcr.io/renovatebot/renovate",
                   "depName": "ghcr.io/renovatebot/renovate", "datasource": "docker",
                   "updateType": "minor"}
-        self.check(DEFAULT, engine, "renovate")
+        self.assertEqual(self.check(DEFAULT, engine, "renovate")["rebaseWhen"], "conflicted")
         bazel = {"manager": "bazelisk", "packageName": "bazelbuild/bazel",
                  "depName": "bazel", "datasource": "github-releases",
                  "updateType": "patch"}
@@ -105,7 +105,9 @@ class GroupingTest(unittest.TestCase):
         worker_rules = {"manager": "bazel-module", "packageName": "tbhb_rules",
                         "depName": "tbhb_rules", "datasource": "git-refs",
                         "updateType": "digest"}
-        self.assertIn("postUpgradeTasks", self.check(WORKER, worker_rules, "tbhb_rules"))
+        resolved = self.check(WORKER, worker_rules, "tbhb_rules")
+        self.assertIn("postUpgradeTasks", resolved)
+        self.assertEqual(resolved["rebaseWhen"], "conflicted")
 
     def test_rules_cloudflare(self):
         commands = [

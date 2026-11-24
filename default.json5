@@ -127,8 +127,9 @@
       matchUpdateTypes: ["minor", "patch", "digest", "pin", "pinDigest"],
       groupName: "pins",
       schedule: ["* 5-7 * * *"],
-      // A pins PR is one per repository, so rebasing it when it falls behind
-      // voids few reviews. Every other PR keeps the `conflicted` default above.
+      // Pins PRs are about one per repository, so a rebase voids few reviews.
+      // A major update splits into its own PR, which keeps the default above.
+      // Separate-group rules that overlap this one set `conflicted` again.
       rebaseWhen: "behind-base-branch",
     },
 
@@ -140,6 +141,7 @@
       description: "Hosted runner images: runs-on and matrix entries together",
       matchDatasources: ["github-runners"],
       groupName: "{{{depName}}} runner",
+      rebaseWhen: "conflicted",
     },
 
     // cspell and its dictionaries come from npm via pnpm. Renovate runs pnpm
@@ -158,6 +160,7 @@
     {
       matchDepNames: ["ghcr.io/renovatebot/renovate"],
       groupName: "renovate",
+      rebaseWhen: "conflicted",
     },
 
     // The pinned preset references in every consumer's .github/renovate.json5
